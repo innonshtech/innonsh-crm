@@ -28,6 +28,7 @@ export default function RolesPermissionsPage() {
   const permissionsMatrix = {
     owner: [
       { module: 'Leads Directory', read: 'Global', write: 'Yes', delete: 'Yes' },
+      { module: 'Product Leads', read: 'Global', write: 'Yes', delete: 'Yes' },
       { module: 'Deals Pipeline', read: 'Global', write: 'Yes', delete: 'Yes' },
       { module: 'Products Catalog', read: 'Global', write: 'Yes', delete: 'Yes' },
       { module: 'Quotations Builder', read: 'Global', write: 'Yes', delete: 'Yes' },
@@ -38,6 +39,7 @@ export default function RolesPermissionsPage() {
     ],
     sales_admin: [
       { module: 'Leads Directory', read: 'Global', write: 'Yes', delete: 'No' },
+      { module: 'Product Leads', read: 'Global', write: 'Yes', delete: 'No' },
       { module: 'Deals Pipeline', read: 'Global', write: 'Yes', delete: 'No' },
       { module: 'Products Catalog', read: 'Global', write: 'Yes', delete: 'No' },
       { module: 'Quotations Builder', read: 'Global', write: 'Yes', delete: 'Yes' },
@@ -48,6 +50,7 @@ export default function RolesPermissionsPage() {
     ],
     sales_rep: [
       { module: 'Leads Directory', read: 'Assigned Only', write: 'Yes', delete: 'No' },
+      { module: 'Product Leads', read: 'Assigned Only', write: 'Yes', delete: 'No' },
       { module: 'Deals Pipeline', read: 'Assigned Only', write: 'Yes', delete: 'No' },
       { module: 'Products Catalog', read: 'Global', write: 'No', delete: 'No' },
       { module: 'Quotations Builder', read: 'Assigned Only', write: 'Yes', delete: 'No' },

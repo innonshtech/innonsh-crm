@@ -125,6 +125,7 @@ export default function DashboardLayout({ children }) {
       links: [
         { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
         { name: 'Leads Directory', href: '/dashboard/leads', icon: Users },
+        { name: 'Product Leads', href: '/dashboard/product-leads', icon: Package },
         { name: 'Contacts Directory', href: '/dashboard/contacts', icon: UserCheck },
         { name: 'Deals Pipeline', href: '/dashboard/deals', icon: Briefcase },
         { name: 'Email Hub', href: '/dashboard/emails', icon: Mail },
@@ -214,6 +215,7 @@ export default function DashboardLayout({ children }) {
           const managerAllowed = [
             'Dashboard',
             'Leads Directory',
+            'Product Leads',
             'Contacts Directory',
             'Deals Pipeline',
             'Email Hub',
@@ -238,6 +240,7 @@ export default function DashboardLayout({ children }) {
           const repAllowed = [
             'Dashboard',
             'Leads Directory',
+            'Product Leads',
             'Contacts Directory',
             'Deals Pipeline',
             'Email Hub',
