@@ -4,20 +4,24 @@ import { supabase } from '@/lib/supabaseClient';
 import { hashPassword } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 
+import { z } from 'zod';
+
+const resetPasswordSchema = z.object({
+  email: z.string().email('Invalid email address syntax.').toLowerCase().trim(),
+  otpCode: z.string().min(1, 'Verification code is required').trim(),
+  newPassword: z.string().regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/, 'Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character.')
+});
+
 export async function POST(req) {
   try {
-    const { email, otpCode, newPassword } = await req.json();
+    const body = await req.json();
+    const parsed = resetPasswordSchema.safeParse(body);
 
-    if (!email || !otpCode || !newPassword) {
-      return NextResponse.json({ error: 'Email, verification code, and new password are required fields.' }, { status: 400 });
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanOtp = otpCode.trim();
-
-    if (newPassword.length < 6) {
-      return NextResponse.json({ error: 'Security password must be at least 6 characters long.' }, { status: 400 });
-    }
+    const { email: cleanEmail, otpCode: cleanOtp, newPassword } = parsed.data;
 
     let user = null;
     let userId = null;

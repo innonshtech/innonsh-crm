@@ -4,32 +4,34 @@ import Email from '@/lib/models/Email';
 import { supabase } from '@/lib/supabaseClient';
 import { hashPassword } from '@/lib/auth';
 import { sendEmail } from '@/lib/mailer';
+import { auditLog } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 
+
+import { z } from 'zod';
+
+const registerSchema = z.object({
+  name: z.string().min(1, 'Name is required').trim(),
+  email: z.string().email('Invalid email address syntax.').toLowerCase().trim(),
+  password: z.string().regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/, 'Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character.'),
+  role: z.enum(['sales_rep', 'sales_admin'], { errorMap: () => ({ message: 'Forbidden. Invalid system role signup request.' }) })
+});
 
 // POST /api/auth/register - Self-signup endpoint for Sales Executives (requires Manager approval)
 export async function POST(req) {
   try {
-    const { name, email, password, role } = await req.json();
-
-    if (!name || !email || !password || !role) {
-      return NextResponse.json({ error: 'Name, email, password, and role are required fields.' }, { status: 400 });
+    const body = await req.json();
+    const parsed = registerSchema.safeParse(body);
+    
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.errors[0].message },
+        { status: 400 }
+      );
     }
+    
+    const { name: cleanName, email: cleanEmail, password, role } = parsed.data;
 
-    if (!email.includes('@')) {
-      return NextResponse.json({ error: 'Invalid email address syntax.' }, { status: 400 });
-    }
-
-    if (!['sales_rep', 'sales_admin'].includes(role)) {
-      return NextResponse.json({ error: 'Forbidden. Invalid system role signup request.' }, { status: 400 });
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Security password must be at least 6 characters long.' }, { status: 400 });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanName = name.trim();
     const hashedPassword = await hashPassword(password);
 
     let newUser = null;
@@ -475,6 +477,8 @@ export async function POST(req) {
         console.error('Failed to notify admins of registration request:', adminErr);
       }
     }
+
+    auditLog('USER_REGISTER_REQUEST', userId, { email: userEmail, role });
 
     return NextResponse.json({
       success: true,

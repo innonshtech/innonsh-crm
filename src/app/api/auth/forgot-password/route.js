@@ -4,19 +4,22 @@ import { supabase } from '@/lib/supabaseClient';
 import { sendEmail } from '@/lib/mailer';
 import { NextResponse } from 'next/server';
 
+import { z } from 'zod';
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email address syntax.').toLowerCase().trim(),
+});
+
 export async function POST(req) {
   try {
-    const { email } = await req.json();
+    const body = await req.json();
+    const parsed = forgotPasswordSchema.safeParse(body);
 
-    if (!email) {
-      return NextResponse.json({ error: 'Email address is required.' }, { status: 400 });
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanEmail.includes('@')) {
-      return NextResponse.json({ error: 'Invalid email address syntax.' }, { status: 400 });
-    }
+    const cleanEmail = parsed.data.email;
 
     let user = null;
 

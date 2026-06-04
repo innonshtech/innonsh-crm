@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { mapUserToFrontend } from '@/lib/dbMapper';
 import { getUserFromRequest, hashPassword } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { auditLog } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -130,20 +132,20 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Forbidden. Access restricted to administrators.' }, { status: 403 });
     }
 
-    const { name, email, password, role } = await req.json();
+    const body = await req.json();
+    const createUserSchema = z.object({
+      name: z.string().min(1, 'Name is required').trim(),
+      email: z.string().email('Invalid email address syntax.').toLowerCase().trim(),
+      password: z.string().regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/, 'Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character.'),
+      role: z.enum(['sales_rep', 'sales_admin', 'owner'])
+    });
 
-    if (!name || !email || !password || !role) {
-      return NextResponse.json({ error: 'All fields (name, email, password, role) are required.' }, { status: 400 });
+    const parsed = createUserSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
     }
 
-    // Check email syntax criteria
-    if (!email.includes('@')) {
-      return NextResponse.json({ error: 'Invalid email address syntax.' }, { status: 400 });
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Password must be at least 6 characters long.' }, { status: 400 });
-    }
+    const { name, email, password, role } = parsed.data;
 
     // Role-based privilege gates check: Managers cannot create Owner accounts
     if (decodedUser.role === 'sales_admin' && role === 'owner') {
@@ -187,6 +189,8 @@ export async function POST(req) {
         throw insertError;
       }
 
+      auditLog('USER_CREATED', decodedUser.id, { createdUserId: newUser.id, createdUserEmail: newUser.email, role });
+
       return NextResponse.json({
         success: true,
         message: 'New representative profile registered successfully!',
@@ -218,6 +222,8 @@ export async function POST(req) {
         isActive: true
       });
 
+      auditLog('USER_CREATED', decodedUser.id, { createdUserId: newUser._id, createdUserEmail: newUser.email, role });
+
       return NextResponse.json({
         success: true,
         message: 'New representative profile registered successfully!',
@@ -230,6 +236,7 @@ export async function POST(req) {
       });
     }
   } catch (error) {
+    auditLog('USER_CREATE_ERROR', req.headers?.get?.('x-user-id') || 'system', { error: error.message });
     console.error('Create new user account error:', error);
     return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });
   }

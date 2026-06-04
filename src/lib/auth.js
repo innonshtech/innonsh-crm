@@ -24,18 +24,29 @@ export async function comparePassword(password, hashedPassword) {
 }
 
 /**
- * Sign a new JWT session token
+ * Sign a new short-lived JWT access token
  * @param {object} payload - user data like id, email, role
  * @returns {string} signed JWT token
  */
 export function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: '7d', // Session valid for 7 days
+    expiresIn: '15m', // Access token valid for 15 minutes
   });
 }
 
 /**
- * Verify a JWT session token
+ * Sign a new JWT refresh token
+ * @param {object} payload - user data
+ * @returns {string} signed JWT refresh token
+ */
+export function signRefreshToken(payload) {
+  return jwt.sign(payload, JWT_SECRET, {
+    expiresIn: '7d', // Refresh token valid for 7 days
+  });
+}
+
+/**
+ * Verify a JWT session token (access or refresh)
  * @param {string} token 
  * @returns {object|null} decoded payload or null if invalid
  */

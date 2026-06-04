@@ -41,6 +41,18 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    mfaEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    activeSessions: [
+      {
+        token: String,
+        ipAddress: String,
+        userAgent: String,
+        lastActive: { type: Date, default: Date.now }
+      }
+    ]
   },
   {
     timestamps: true, // Auto-creates createdAt and updatedAt

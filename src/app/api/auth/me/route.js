@@ -4,6 +4,7 @@ import connectToDatabase from '@/lib/db';
 import User from '@/lib/models/User';
 import { supabase } from '@/lib/supabaseClient';
 import { mapUserToFrontend } from '@/lib/dbMapper';
+import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,17 +136,26 @@ export async function PUT(req) {
       return NextResponse.json({ error: 'User session not found or deactivated.' }, { status: 403 });
     }
 
-    const { name, currentPassword, newPassword } = await req.json();
+    const body = await req.json();
+    const updateProfileSchema = z.object({
+      name: z.string().min(1, 'Profile name cannot be left blank.').trim().optional(),
+      currentPassword: z.string().optional(),
+      newPassword: z.string().optional()
+    });
+
+    const parsed = updateProfileSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
+    }
+
+    const { name, currentPassword, newPassword } = parsed.data;
 
     let updatedName = userName;
     let updatedPassword = userHashedPassword;
 
     // 1. Update Name
-    if (name !== undefined) {
-      if (!name.trim()) {
-        return NextResponse.json({ error: 'Profile name cannot be left blank.' }, { status: 400 });
-      }
-      updatedName = name.trim();
+    if (name) {
+      updatedName = name;
     }
 
     // 2. Securely Change Password using Bcrypt verification
@@ -155,8 +165,9 @@ export async function PUT(req) {
         return NextResponse.json({ error: 'Incorrect current password.' }, { status: 400 });
       }
 
-      if (newPassword.length < 6) {
-        return NextResponse.json({ error: 'New password must be at least 6 characters long.' }, { status: 400 });
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+      if (!passwordRegex.test(newPassword)) {
+        return NextResponse.json({ error: 'Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character.' }, { status: 400 });
       }
 
       updatedPassword = await hashPassword(newPassword);
