@@ -1,6 +1,6 @@
-import { redirect } from 'next/navigation';
+import LandingPage from '@/components/LandingPage';
+import '@/components/LandingPage.css';
 
 export default function Home() {
-  // Server-side redirect to the secure executive dashboard home
-  redirect('/dashboard');
+  return <LandingPage />;
 }
