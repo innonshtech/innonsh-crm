@@ -118,7 +118,7 @@ export default function LandingPage() {
   <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="var(--primary)"/>
  </svg>
  </span>
-      Innonsh<span style={{color: "var(--primary)"}}>CRM</span>
+ <span className="logo-text" style={{display: 'flex', gap: '5px'}}>Innonsh<span style={{color: "var(--primary)"}}>CRM</span></span>
  </a>
  <nav className="nav-links">
  <a href="#challenges">Challenges</a>
@@ -797,7 +797,7 @@ export default function LandingPage() {
   <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="var(--primary)"/>
  </svg>
  </span>
- Innonsh<span style={{color: "var(--primary)"}}>CRM</span>
+ <span className="logo-text" style={{display: 'flex', gap: '5px'}}>Innonsh<span style={{color: "var(--primary)"}}>CRM</span></span>
  </a>
  <p>A complete customer relationship management platform that turns leads into loyal customers from first touch to repeat business.</p>
  <div className="foot-contact">
