@@ -177,10 +177,30 @@ const LeadSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null, // Setting to null to prevent breaking existing leads, though logic should populate it
+    },
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null, // Null means unassigned lead
+    },
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    visibilityScope: {
+      type: String,
+      enum: ['PRIVATE', 'ASSIGNED', 'TEAM', 'GLOBAL'],
+      default: 'PRIVATE',
     },
     score: {
       type: Number,

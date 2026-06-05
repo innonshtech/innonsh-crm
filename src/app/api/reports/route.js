@@ -46,9 +46,15 @@ export async function GET(req) {
 
     if (supabase) {
       // 1. LEAD CONVERSION FUNNEL & SOURCES & PRIORITIES METRICS
-      const { data: leadsData, error: leadsError } = await supabase
-        .from('leads')
-        .select('status, source, priority');
+      let leadsQuery = supabase.from('leads').select('status, source, priority');
+      
+      if (decodedUser.role === 'sales_rep' || decodedUser.role === 'sales_admin') {
+        leadsQuery = leadsQuery.eq('assigned_to', decodedUser.id);
+      } else if (decodedUser.role === 'owner') {
+        // Owner has global visibility
+      }
+      
+      const { data: leadsData, error: leadsError } = await leadsQuery;
 
       if (leadsError) {
         console.error('Supabase fetch reports leads error:', leadsError);
@@ -197,11 +203,18 @@ export async function GET(req) {
       await connectToDatabase();
 
       // 1. LEAD CONVERSION FUNNEL METRICS
-      totalLeadsCount = await Lead.countDocuments();
-      convertedLeadsCount = await Lead.countDocuments({ status: 'Qualified' });
-      rawLeadsCount = await Lead.countDocuments({ status: 'New' });
-      contactedLeadsCount = await Lead.countDocuments({ status: 'Contacted' });
-      lostLeadsCount = await Lead.countDocuments({ status: 'Lost' });
+      let query = {};
+      if (decodedUser.role === 'sales_rep' || decodedUser.role === 'sales_admin') {
+        query.assignedTo = decodedUser.id;
+      } else if (decodedUser.role === 'owner') {
+        // Owner has global visibility
+      }
+
+      totalLeadsCount = await Lead.countDocuments(query);
+      convertedLeadsCount = await Lead.countDocuments({ ...query, status: 'Qualified' });
+      rawLeadsCount = await Lead.countDocuments({ ...query, status: 'New' });
+      contactedLeadsCount = await Lead.countDocuments({ ...query, status: 'Contacted' });
+      lostLeadsCount = await Lead.countDocuments({ ...query, status: 'Lost' });
 
       conversionRate = totalLeadsCount > 0 
         ? Number(((convertedLeadsCount / totalLeadsCount) * 100).toFixed(1)) 
@@ -209,6 +222,7 @@ export async function GET(req) {
 
       // 2. LEAD SOURCES DISTRIBUTION
       const leadSourcesAgg = await Lead.aggregate([
+        { $match: query },
         { $group: { _id: '$source', count: { $sum: 1 } } }
       ]);
       leadSources = leadSourcesAgg.map(item => ({
@@ -218,6 +232,7 @@ export async function GET(req) {
 
       // 3. LEAD PRIORITIES DISTRIBUTION
       const leadPrioritiesAgg = await Lead.aggregate([
+        { $match: query },
         { $group: { _id: '$priority', count: { $sum: 1 } } }
       ]);
       leadPriorities = leadPrioritiesAgg.map(item => ({

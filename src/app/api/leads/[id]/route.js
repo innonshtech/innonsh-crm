@@ -20,7 +20,7 @@ export async function GET(req, { params }) {
     if (supabase) {
       const { data, error } = await supabase
         .from('leads')
-        .select('*, users(id, name, email), lead_notes(*), lead_attachments(*)')
+        .select('*, users!leads_assigned_to_fkey(id, name, email), lead_notes(*), lead_attachments(*)')
         .eq('id', id)
         .maybeSingle();
 
@@ -33,16 +33,18 @@ export async function GET(req, { params }) {
         return NextResponse.json({ error: 'Lead not found.' }, { status: 404 });
       }
 
-      // SECURITY CHECK: Sales Rep can only view their own leads OR shared leads (assigned_to is null)
+      // SECURITY CHECK: Sales Rep and Sales Admin can only view their assigned leads
       if (
-        decodedUser.role === 'sales_rep' && 
-        (data.assigned_to && data.assigned_to !== decodedUser.id)
+        (decodedUser.role === 'sales_rep' || decodedUser.role === 'sales_admin') && 
+        data.assigned_to !== decodedUser.id
       ) {
         return NextResponse.json(
           { error: 'Forbidden. You do not have permission to view this lead.' },
           { status: 403 }
         );
       }
+
+      // Owner has global access
 
       return NextResponse.json({ success: true, lead: mapLeadToFrontend(data) });
     } else {
@@ -54,16 +56,19 @@ export async function GET(req, { params }) {
         return NextResponse.json({ error: 'Lead not found.' }, { status: 404 });
       }
 
-      // SECURITY CHECK: Sales Rep can only view their own leads OR shared leads (assignedTo is null)
+      // SECURITY CHECK: Sales Rep and Sales Admin can only view their assigned leads
       if (
-        decodedUser.role === 'sales_rep' && 
-        (lead.assignedTo && lead.assignedTo._id.toString() !== decodedUser.id)
+        (decodedUser.role === 'sales_rep' || decodedUser.role === 'sales_admin') && 
+        lead.assignedTo?.toString() !== decodedUser.id &&
+        lead.assignedTo?._id?.toString() !== decodedUser.id
       ) {
         return NextResponse.json(
           { error: 'Forbidden. You do not have permission to view this lead.' },
           { status: 403 }
         );
       }
+
+      // Owner has global access
 
       return NextResponse.json({ success: true, lead });
     }
@@ -89,7 +94,7 @@ export async function PUT(req, { params }) {
     if (supabase) {
       const { data: existingLead, error: fetchError } = await supabase
         .from('leads')
-        .select('*, users(id, name, email)')
+        .select('*, users!leads_assigned_to_fkey(id, name, email)')
         .eq('id', id)
         .maybeSingle();
 
@@ -102,16 +107,18 @@ export async function PUT(req, { params }) {
         return NextResponse.json({ error: 'Lead not found.' }, { status: 404 });
       }
 
-      // SECURITY CHECK: Sales Rep can only edit their own leads OR shared/all leads
+      // SECURITY CHECK: Sales Rep and Sales Admin can only edit their assigned leads
       if (
-        decodedUser.role === 'sales_rep' && 
-        (existingLead.assigned_to && existingLead.assigned_to !== decodedUser.id)
+        (decodedUser.role === 'sales_rep' || decodedUser.role === 'sales_admin') && 
+        existingLead.assigned_to !== decodedUser.id
       ) {
         return NextResponse.json(
           { error: 'Forbidden. You do not have permission to edit this lead.' },
           { status: 403 }
         );
       }
+
+      // Owner has global access
 
       const body = await req.json();
       const {
@@ -339,7 +346,7 @@ export async function PUT(req, { params }) {
       // Fetch populated fresh document to return to client
       const { data: refreshedLead, error: refreshError } = await supabase
         .from('leads')
-        .select('*, users(id, name, email), lead_notes(*), lead_attachments(*)')
+        .select('*, users!leads_assigned_to_fkey(id, name, email), lead_notes(*), lead_attachments(*)')
         .eq('id', id)
         .single();
 
@@ -363,16 +370,18 @@ export async function PUT(req, { params }) {
         return NextResponse.json({ error: 'Lead not found.' }, { status: 404 });
       }
 
-      // SECURITY CHECK: Sales Rep can only edit their own leads OR shared/all leads
+      // SECURITY CHECK: Sales Rep and Sales Admin can only edit their assigned leads
       if (
-        decodedUser.role === 'sales_rep' && 
-        (lead.assignedTo && lead.assignedTo.toString() !== decodedUser.id)
+        (decodedUser.role === 'sales_rep' || decodedUser.role === 'sales_admin') && 
+        lead.assignedTo?.toString() !== decodedUser.id
       ) {
         return NextResponse.json(
           { error: 'Forbidden. You do not have permission to edit this lead.' },
           { status: 403 }
         );
       }
+
+      // Owner has global access
 
       const body = await req.json();
       const {
@@ -604,6 +613,8 @@ export async function DELETE(req, { params }) {
         return NextResponse.json({ error: 'Lead not found.' }, { status: 404 });
       }
 
+      // Owner has global access
+
       const { error: deleteError } = await supabase
         .from('leads')
         .delete()
@@ -622,11 +633,15 @@ export async function DELETE(req, { params }) {
     } else {
       await connectToDatabase();
 
-      const deletedLead = await Lead.findByIdAndDelete(id);
+      const lead = await Lead.findById(id);
 
-      if (!deletedLead) {
+      if (!lead) {
         return NextResponse.json({ error: 'Lead not found.' }, { status: 404 });
       }
+
+      // Owner has global access
+
+      const deletedLead = await Lead.findByIdAndDelete(id);
 
       return NextResponse.json({
         success: true,

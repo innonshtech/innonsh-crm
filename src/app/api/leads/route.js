@@ -34,11 +34,14 @@ export async function GET(req) {
       // Query Supabase
       let queryBuilder = supabase
         .from('leads')
-        .select('*, users(id, name, email), lead_notes(*), lead_attachments(*)');
+        .select('*, users!leads_assigned_to_fkey(id, name, email), lead_notes(*), lead_attachments(*)');
 
-      // STICT ROLE-BASED ACCESS CONTROL (Leads Isolation)
-      if (decodedUser.role === 'sales_rep') {
-        queryBuilder = queryBuilder.or(`assigned_to.eq.${decodedUser.id},assigned_to.is.null`);
+      // STRICT ROLE-BASED ACCESS CONTROL (Leads Isolation)
+      if (decodedUser.role === 'sales_rep' || decodedUser.role === 'sales_admin') {
+        // Users can only see leads strictly assigned to them
+        queryBuilder = queryBuilder.eq('assigned_to', decodedUser.id);
+      } else if (decodedUser.role === 'owner') {
+        // Owner has global visibility, no filters needed
       } else if (assignedToFilter) {
         if (assignedToFilter === 'all') {
           queryBuilder = queryBuilder.is('assigned_to', null);
@@ -98,11 +101,11 @@ export async function GET(req) {
       await connectToDatabase();
       const query = {};
 
-      if (decodedUser.role === 'sales_rep') {
-        query.$or = [
-          { assignedTo: decodedUser.id },
-          { assignedTo: null }
-        ];
+      if (decodedUser.role === 'sales_rep' || decodedUser.role === 'sales_admin') {
+        // Users can only see leads strictly assigned to them
+        query.assignedTo = decodedUser.id;
+      } else if (decodedUser.role === 'owner') {
+        // Owner has global visibility, no filters needed
       } else if (assignedToFilter) {
         if (assignedToFilter === 'all') {
           query.assignedTo = null;
@@ -343,6 +346,10 @@ export async function POST(req) {
             follow_up_type: followUpType || 'None',
             next_follow_up_date: nextFollowUpDate ? new Date(nextFollowUpDate).toISOString() : null,
             assigned_to: finalAssignee,
+            created_by: decodedUser.id,
+            owner_id: decodedUser.id,
+            assigned_by: decodedUser.id,
+            visibility_scope: 'PRIVATE',
             custom_fields: customFields || []
           }
         ])
@@ -369,7 +376,7 @@ export async function POST(req) {
       // Fetch freshly joined lead to match response data
       const { data: refreshedLead } = await supabase
         .from('leads')
-        .select('*, users(id, name, email), lead_notes(*), lead_attachments(*)')
+        .select('*, users!leads_assigned_to_fkey(id, name, email), lead_notes(*), lead_attachments(*)')
         .eq('id', newLead.id)
         .single();
 
@@ -442,6 +449,10 @@ export async function POST(req) {
         interestedProduct: interestedProduct || '',
         followUpType: followUpType || 'None',
         nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
+        createdBy: decodedUser.id,
+        ownerId: decodedUser.id,
+        assignedBy: decodedUser.id,
+        visibilityScope: 'PRIVATE',
         customFields: customFields || [],
         notes: [],
       };

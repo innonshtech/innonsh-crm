@@ -18,7 +18,8 @@ export async function middleware(req) {
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
     const now = Date.now();
     const windowMs = 60000; // 1 minute
-    const maxRequests = pathname.startsWith('/api/auth/') ? 5 : 60; // Stricter for Auth
+    const isDev = process.env.NODE_ENV === 'development';
+    const maxRequests = isDev ? 1000 : (pathname.startsWith('/api/auth/') ? 5 : 60); // Stricter for Auth, increased for Dev
 
     const tokenData = rateLimitMap.get(ip) || { count: 0, startTime: now };
 
