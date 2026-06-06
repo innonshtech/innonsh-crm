@@ -118,7 +118,7 @@ export default function LandingPage() {
   <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="var(--primary)"/>
  </svg>
  </span>
- <span className="logo-text" style={{display: 'flex', gap: '5px'}}>Innonsh<span style={{color: "var(--primary)"}}>CRM</span></span>
+ <span className="logo-text" style={{display: 'flex', gap: '5px'}}>Innonsh<span style={{color: "var(--primary)"}}>LeadGen</span></span>
  </a>
  <nav className="nav-links">
  <a href="#challenges">Challenges</a>

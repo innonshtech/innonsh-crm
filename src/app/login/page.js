@@ -11,7 +11,9 @@ import {
   ArrowRight, 
   CheckCircle2, 
   ShieldCheck,
-  UserPlus
+  UserPlus,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -23,6 +25,7 @@ export default function LoginPage() {
   // Login Form States
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
   // Register Form States
   const [name, setName] = useState('');
@@ -216,9 +219,9 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/seed');
       const data = await res.json();
       if (res.ok) {
-        setSuccess('Database successfully seeded! Log in using owner@mycompany.com & ownerpassword123.');
-        setEmail('owner@mycompany.com');
-        setPassword('ownerpassword123');
+        setSuccess('Database successfully seeded! Log in using nikheel@innonsh.com.');
+        setEmail('nikheel@innonsh.com');
+        setPassword('nikheel@123');
         setActiveTab('login');
       } else {
         setError(data.error || 'Seed failed.');
@@ -240,11 +243,14 @@ export default function LoginPage() {
       <div className="w-full max-w-md z-10">
         {/* CRM Brand Header */}
         <div className="flex flex-col items-center mb-6">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500 font-bold text-white text-2xl shadow-lg shadow-emerald-500/20 mb-3 animate-pulse">
-            I
-          </div>
+          <svg width="48" height="48" viewBox="0 0 189 190" fill="none" xmlns="http://www.w3.org/2000/svg" className="mb-3 animate-pulse drop-shadow-md">
+            <path d="M45.0879 63.4871C45.1245 61.3863 46.7801 59.6719 48.8783 59.5621L111.882 56.2645C115.508 56.0747 117.491 60.4256 114.968 63.0377L50.8679 129.416C48.3455 132.028 43.9281 130.198 43.9912 126.567L45.0879 63.4871Z" fill="#10b981"/>
+            <path d="M131.109 138.872C131.072 140.973 129.417 142.687 127.318 142.797L64.3147 146.094C60.6884 146.284 58.7058 141.933 61.2283 139.321L125.329 72.9434C127.851 70.3313 132.269 72.1609 132.205 75.7916L131.109 138.872Z" fill="#10b981"/>
+            <rect x="76" width="113" height="25" rx="4" fill="#10b981"/>
+            <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="#10b981"/>
+          </svg>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-            Welcome to Innonsh CRM
+            Welcome to Innonsh LeadGen
           </h1>
           <p className="text-xs text-slate-400 mt-1.5 font-semibold tracking-wider uppercase">CUSTOM SERVICES & PRODUCTS PORTAL</p>
         </div>
@@ -338,13 +344,20 @@ export default function LoginPage() {
                     <Lock className="h-4 w-4" />
                   </span>
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     required
                     placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 hover:border-slate-350 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition text-xs text-slate-850 placeholder-slate-400"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 hover:border-slate-350 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition text-xs text-slate-850 placeholder-slate-400"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-emerald-500 transition cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
 

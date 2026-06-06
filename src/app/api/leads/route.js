@@ -41,7 +41,21 @@ export async function GET(req) {
         // Users can only see leads strictly assigned to them
         queryBuilder = queryBuilder.eq('assigned_to', decodedUser.id);
       } else if (decodedUser.role === 'owner') {
-        // Owner has global visibility, no filters needed
+        // Owner can see leads of non-owners, their own leads, and unassigned leads
+        const { data: otherOwners } = await supabase.from('users').select('id').eq('role', 'owner').neq('id', decodedUser.id);
+        const otherOwnerIds = (otherOwners || []).map(o => o.id);
+        
+        if (otherOwnerIds.length > 0) {
+          queryBuilder = queryBuilder.not('assigned_to', 'in', `(${otherOwnerIds.join(',')})`);
+        }
+        
+        if (assignedToFilter) {
+          if (assignedToFilter === 'all') {
+            queryBuilder = queryBuilder.is('assigned_to', null);
+          } else {
+            queryBuilder = queryBuilder.eq('assigned_to', assignedToFilter);
+          }
+        }
       } else if (assignedToFilter) {
         if (assignedToFilter === 'all') {
           queryBuilder = queryBuilder.is('assigned_to', null);
@@ -105,7 +119,26 @@ export async function GET(req) {
         // Users can only see leads strictly assigned to them
         query.assignedTo = decodedUser.id;
       } else if (decodedUser.role === 'owner') {
-        // Owner has global visibility, no filters needed
+        // Owner can see leads of non-owners, their own leads, and unassigned leads
+        const otherOwners = await User.find({ role: 'owner', _id: { $ne: decodedUser.id } }).select('_id');
+        const otherOwnerIds = otherOwners.map(o => o._id);
+        
+        if (otherOwnerIds.length > 0) {
+          query.assignedTo = { $nin: otherOwnerIds };
+        }
+        
+        if (assignedToFilter) {
+          if (assignedToFilter === 'all') {
+            query.assignedTo = null;
+          } else {
+            // Ensure they cannot filter by another owner's ID
+            if (!otherOwnerIds.some(id => id.toString() === assignedToFilter)) {
+              query.assignedTo = assignedToFilter;
+            } else {
+              query.assignedTo = '000000000000000000000000'; // Invalid ObjectId to return no results
+            }
+          }
+        }
       } else if (assignedToFilter) {
         if (assignedToFilter === 'all') {
           query.assignedTo = null;

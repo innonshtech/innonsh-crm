@@ -6,9 +6,13 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const defaultOwnerEmail = 'owner@mycompany.com';
-    const defaultOwnerPassword = 'ownerpassword123';
-    const hashedOwnerPassword = await hashPassword(defaultOwnerPassword);
+    const owner1Email = 'nikheel@innonsh.com';
+    const owner1Password = 'nikheel@123';
+    const hashedOwner1Password = await hashPassword(owner1Password);
+
+    const owner2Email = 'aman@innonsh.com';
+    const owner2Password = 'aman@123';
+    const hashedOwner2Password = await hashPassword(owner2Password);
 
     const defaultManagerEmail = 'manager@mycompany.com';
     const defaultManagerPassword = 'managerpassword123';
@@ -20,9 +24,17 @@ export async function GET() {
 
     const usersToCreate = [
       {
-        name: 'Innonsh Owner',
-        email: defaultOwnerEmail,
-        password: hashedOwnerPassword,
+        name: 'Nikheel Joshi',
+        email: owner1Email,
+        password: hashedOwner1Password,
+        role: 'owner',
+        approval_status: 'Approved',
+        is_active: true
+      },
+      {
+        name: 'Aman Malviya',
+        email: owner2Email,
+        password: hashedOwner2Password,
         role: 'owner',
         approval_status: 'Approved',
         is_active: true
@@ -114,12 +126,17 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: 'System successfully initialized! All 3 roles created in your active database.',
+      message: 'System successfully initialized! All 4 roles created in your active database.',
       default_credentials: [
         {
-          role: 'Owner (Super Admin)',
-          email: defaultOwnerEmail,
-          password: defaultOwnerPassword
+          role: 'Owner (Nikheel Joshi)',
+          email: owner1Email,
+          password: owner1Password
+        },
+        {
+          role: 'Owner (Aman Malviya)',
+          email: owner2Email,
+          password: owner2Password
         },
         {
           role: 'Sales Manager (Sales Admin)',
