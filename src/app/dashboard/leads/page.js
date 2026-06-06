@@ -1835,13 +1835,14 @@ export default function LeadsPage() {
                 <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Communication channels</span>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Email Address</label>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Email Address *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
                         <Mail className="h-3.5 w-3.5" />
                       </span>
                       <input
                         type="email"
+                        required
                         placeholder="client@company.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
@@ -1850,34 +1851,50 @@ export default function LeadsPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number</label>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
                         <Phone className="h-3.5 w-3.5" />
                       </span>
                       <input
                         type="text"
-                        placeholder="+91 99999 88888"
+                        required
+                        pattern="\d{10}"
+                        title="Phone number must be exactly 10 digits"
+                        placeholder="9999988888"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                         className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 transition"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">WhatsApp Mobile (outreach)</label>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">WhatsApp Mobile *</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-emerald-500 pointer-events-none">
                         <MessageCircle className="h-3.5 w-3.5" />
                       </span>
                       <input
                         type="text"
-                        placeholder="E.g. 9876543210"
+                        required
+                        pattern="\d{10}"
+                        title="WhatsApp number must be exactly 10 digits"
+                        placeholder="9876543210"
                         value={whatsapp}
-                        onChange={(e) => setWhatsapp(e.target.value)}
+                        onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, '').slice(0, 10))}
                         className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-855 placeholder-slate-400 transition"
                       />
                     </div>
+                    <label className="flex items-center gap-1.5 mt-2 cursor-pointer w-max">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-slate-300 text-emerald-500"
+                        onChange={(e) => {
+                          if (e.target.checked) setWhatsapp(phone);
+                        }}
+                      />
+                      <span className="text-[10px] font-bold text-slate-500">Same as Phone Number</span>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -1990,9 +2007,10 @@ export default function LeadsPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Interested Product / Service ⭐</label>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Interested Product / Service *</label>
                     <select
                       value={interestedProduct}
+                      required
                       onChange={(e) => setInterestedProduct(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-700 transition"
                     >

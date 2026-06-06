@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { mapLeadToFrontend } from '@/lib/dbMapper';
 import { getUserFromRequest } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { sanitizePayload } from '@/lib/sanitize';
 
 // GET /api/leads - Fetch lead list with strict role-based access control & dynamic filters
 export async function GET(req) {
@@ -211,7 +212,8 @@ export async function POST(req) {
       );
     }
 
-    const body = await req.json();
+    let body = await req.json();
+    body = sanitizePayload(body);
     const {
       firstName,
       lastName,
@@ -239,11 +241,26 @@ export async function POST(req) {
       followUpType,
     } = body;
 
-    if (!firstName || !company) {
+    if (!firstName || !company || !email || !phone || !whatsapp || !interestedProduct) {
       return NextResponse.json(
-        { error: 'First name and Company name are required.' },
+        { error: 'First name, Company name, Email, Phone, WhatsApp, and Interested Product are required fields.' },
         { status: 400 }
       );
+    }
+
+    // Phone & WhatsApp 10 digits validation
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone)) {
+      return NextResponse.json({ error: 'Phone number must be exactly 10 digits.' }, { status: 400 });
+    }
+    if (!phoneRegex.test(whatsapp)) {
+      return NextResponse.json({ error: 'WhatsApp number must be exactly 10 digits.' }, { status: 400 });
+    }
+    
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json({ error: 'Please provide a valid email address.' }, { status: 400 });
     }
 
     const leadStatusValue = status || 'New';

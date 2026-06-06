@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { mapContactToFrontend } from '@/lib/dbMapper';
 import { getUserFromRequest } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { sanitizePayload } from '@/lib/sanitize';
 
 // GET /api/contacts - Retrieve customer contacts lists with strict role permissions
 export async function GET(req) {
@@ -111,7 +112,8 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
+    let body = await req.json();
+    body = sanitizePayload(body);
     const {
       firstName,
       lastName,

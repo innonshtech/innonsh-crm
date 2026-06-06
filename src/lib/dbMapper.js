@@ -56,6 +56,7 @@ export function mapLeadToFrontend(lead) {
     } : null,
     score: lead.score || 0,
     customFields: lead.custom_fields || [],
+    customData: lead.custom_data || {},
     // Map joined lead_notes rows to notes array
     notes: lead.lead_notes ? lead.lead_notes.map(n => ({
       _id: n.id,
@@ -99,6 +100,37 @@ export function mapNotificationToFrontend(notification) {
   };
 }
 
+export function mapClientOrgToFrontend(org) {
+  if (!org) return null;
+  return {
+    _id: org.id || org._id,
+    id: org.id || org._id,
+    orgId: org.org_id || org.orgId,
+    name: org.name,
+    website: org.website || '',
+    industry: org.industry || '',
+    phone: org.phone || '',
+    email: org.email || '',
+    city: org.city || '',
+    state: org.state || '',
+    country: org.country || 'India',
+    assignedTo: org.users ? {
+      _id: org.users.id,
+      id: org.users.id,
+      name: org.users.name,
+      email: org.users.email
+    } : (org.assignedTo ? {
+      _id: org.assignedTo._id || org.assignedTo.id || org.assignedTo,
+      id: org.assignedTo._id || org.assignedTo.id || org.assignedTo,
+      name: org.assignedTo.name || '',
+      email: org.assignedTo.email || ''
+    } : null),
+    customData: org.custom_data || org.customData || {},
+    createdAt: org.created_at || org.createdAt,
+    updatedAt: org.updated_at || org.updatedAt,
+  };
+}
+
 export function mapContactToFrontend(contact) {
   if (!contact) return null;
   return {
@@ -121,7 +153,26 @@ export function mapContactToFrontend(contact) {
       email: contact.users.email
     } : null,
     leadId: contact.lead_id || null,
+    organizationId: contact.organization_id || (contact.organizationId?._id || contact.organizationId || null),
+    organization: contact.client_organizations 
+      ? mapClientOrgToFrontend(contact.client_organizations) 
+      : ((contact.organizationId && typeof contact.organizationId === 'object' && contact.organizationId.name)
+        ? {
+            _id: contact.organizationId._id,
+            id: contact.organizationId._id,
+            name: contact.organizationId.name,
+            website: contact.organizationId.website || '',
+            industry: contact.organizationId.industry || '',
+            phone: contact.organizationId.phone || '',
+            email: contact.organizationId.email || '',
+            city: contact.organizationId.city || '',
+            state: contact.organizationId.state || '',
+            country: contact.organizationId.country || 'India',
+            customData: contact.organizationId.customData || {},
+          }
+        : null),
     status: contact.status || 'Active',
+    customData: contact.custom_data || {},
     createdAt: contact.created_at,
     updatedAt: contact.updated_at,
   };
@@ -137,6 +188,24 @@ export function mapDealToFrontend(deal) {
     stage: deal.stage || 'Prospecting',
     closingDate: deal.closing_date,
     leadId: deal.lead_id || null,
+    organizationId: deal.organization_id || (deal.organizationId?._id || deal.organizationId || null),
+    organization: deal.client_organizations 
+      ? mapClientOrgToFrontend(deal.client_organizations) 
+      : ((deal.organizationId && typeof deal.organizationId === 'object' && deal.organizationId.name)
+        ? {
+            _id: deal.organizationId._id,
+            id: deal.organizationId._id,
+            name: deal.organizationId.name,
+            website: deal.organizationId.website || '',
+            industry: deal.organizationId.industry || '',
+            phone: deal.organizationId.phone || '',
+            email: deal.organizationId.email || '',
+            city: deal.organizationId.city || '',
+            state: deal.organizationId.state || '',
+            country: deal.organizationId.country || 'India',
+            customData: deal.organizationId.customData || {},
+          }
+        : null),
     assignedTo: deal.users ? {
       _id: deal.users.id,
       id: deal.users.id,
@@ -146,6 +215,7 @@ export function mapDealToFrontend(deal) {
     company: deal.company,
     contactEmail: deal.contact_email || '',
     contactPhone: deal.contact_phone || '',
+    customData: deal.custom_data || {},
     createdAt: deal.created_at,
     updatedAt: deal.updated_at,
   };
@@ -469,10 +539,62 @@ export function mapEmailToFrontend(email) {
     proposalFileData: email.proposal_file_data || '',
     proposalFileMimeType: email.proposal_file_mime_type || '',
     channel: email.channel || 'email',
+    cc: email.cc || '',
     createdAt: email.created_at,
     updatedAt: email.updated_at,
   };
 }
+
+
+export function mapTicketCommentToFrontend(comment) {
+  if (!comment) return null;
+  return {
+    _id: comment.id,
+    id: comment.id,
+    ticketId: comment.ticket_id,
+    senderId: comment.sender_id,
+    senderName: comment.sender_name,
+    commentText: comment.comment_text,
+    isInternal: comment.is_internal || false,
+    createdAt: comment.created_at,
+  };
+}
+
+export function mapTicketToFrontend(ticket) {
+  if (!ticket) return null;
+  return {
+    _id: ticket.id,
+    id: ticket.id,
+    ticketId: ticket.ticket_id,
+    title: ticket.title,
+    description: ticket.description,
+    ticketType: ticket.ticket_type,
+    priority: ticket.priority || 'Medium',
+    status: ticket.status || 'New',
+    orgId: ticket.org_id,
+    contactId: ticket.contacts ? {
+      _id: ticket.contacts.id,
+      id: ticket.contacts.id,
+      firstName: ticket.contacts.first_name,
+      lastName: ticket.contacts.last_name || '',
+      email: ticket.contacts.email || ''
+    } : (ticket.contact_id || null),
+    assignedTo: ticket.users ? {
+      _id: ticket.users.id,
+      id: ticket.users.id,
+      name: ticket.users.name,
+      email: ticket.users.email,
+      role: ticket.users.role || ''
+    } : null,
+    attachments: ticket.attachments || [],
+    comments: ticket.ticket_comments ? ticket.ticket_comments.map(mapTicketCommentToFrontend) : [],
+    resolvedAt: ticket.resolved_at || null,
+    createdAt: ticket.created_at,
+    updatedAt: ticket.updated_at,
+  };
+}
+
+
 
 
 
