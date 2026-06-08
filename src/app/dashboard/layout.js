@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import {
-  LayoutDashboard,
-  Users,
+import { 
+  LayoutDashboard, 
+  Users, 
   UserCheck,
-  Briefcase,
+  Briefcase, 
   CheckSquare,
   PhoneCall,
   Calendar,
@@ -21,9 +21,9 @@ import {
   LifeBuoy,
   Network,
   Bell,
-  Settings,
+  Settings, 
   UserCog,
-  LogOut,
+  LogOut, 
   User as UserIcon,
   Menu,
   X,
@@ -55,7 +55,8 @@ export default function DashboardLayout({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [bellDropdownOpen, setBellDropdownOpen] = useState(false);
-
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  
   // Dynamic Module Activation Requests States
   const [moduleRequests, setModuleRequests] = useState([]);
   const [requestingModule, setRequestingModule] = useState(false);
@@ -162,7 +163,7 @@ export default function DashboardLayout({ children }) {
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-800 font-sans p-6 select-none">
         <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center space-y-6 relative overflow-hidden">
           <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-indigo-500/5 blur-[50px] pointer-events-none"></div>
-
+          
           {/* Lock Icon */}
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 border border-indigo-100 text-indigo-500 shadow-sm animate-pulse">
             <Lock className="h-6 w-6 text-indigo-650" />
@@ -174,7 +175,7 @@ export default function DashboardLayout({ children }) {
               {displayName} Module Locked
             </h2>
             <p className="text-xs text-slate-500 font-semibold leading-relaxed px-2">
-              Aapki organization ke paas <b>{displayName}</b> module ka active license nahi hai.
+              Aapki organization ke paas <b>{displayName}</b> module ka active license nahi hai. 
               Kripya is module ko activate karne ke liye platform Super Admin se sampark karein.
             </p>
           </div>
@@ -233,21 +234,14 @@ export default function DashboardLayout({ children }) {
     );
   };
 
-  const fetchNotifications = async (retryOn401 = true) => {
+  // Fetch real-time user notification logs
+  const fetchNotifications = async () => {
     try {
       const res = await fetch('/api/notifications');
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
-      } else if (res.status === 401 && retryOn401) {
-        // Token might be expired, attempt to refresh
-        const refreshRes = await fetch('/api/auth/refresh', { method: 'POST' });
-        if (refreshRes.ok) {
-          return fetchNotifications(false); // Retry once
-        } else {
-          router.push('/login');
-        }
       }
     } catch (err) {
       console.error('Fetch user notifications failed:', err);
@@ -279,7 +273,7 @@ export default function DashboardLayout({ children }) {
   };
 
   useEffect(() => {
-    async function checkAuth(retryOn401 = true) {
+    async function checkAuth() {
       try {
         const res = await fetch('/api/auth/me');
         if (res.ok) {
@@ -298,14 +292,6 @@ export default function DashboardLayout({ children }) {
             } catch (reqsErr) {
               console.error('Fetch tenant module requests failed:', reqsErr);
             }
-          }
-        } else if (res.status === 401 && retryOn401) {
-          // Token might be expired, attempt to refresh
-          const refreshRes = await fetch('/api/auth/refresh', { method: 'POST' });
-          if (refreshRes.ok) {
-            return checkAuth(false); // Retry once
-          } else {
-            router.push('/login');
           }
         } else {
           router.push('/login');
@@ -345,7 +331,6 @@ export default function DashboardLayout({ children }) {
       links: [
         { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
         { name: 'Leads', href: '/dashboard/leads', icon: Users },
-        { name: 'Product Leads', href: '/dashboard/product-leads', icon: Package },
         { name: 'Contacts Directory', href: '/dashboard/contacts', icon: UserCheck },
         { name: 'Client Organizations', href: '/dashboard/client-organizations', icon: Building2 },
         { name: 'Deals Pipeline', href: '/dashboard/deals', icon: Briefcase },
@@ -395,9 +380,8 @@ export default function DashboardLayout({ children }) {
         { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
         { name: 'Settings', href: '/dashboard/settings', icon: Settings },
         { name: 'Profile', href: '/dashboard/profile', icon: UserCog },
-        { name: 'CRM Add-ons', href: '/dashboard/settings/modules', icon: Sparkles },
-        { name: 'Custom Fields', href: '/dashboard/settings/custom-fields', icon: Settings2 },
-        { name: 'Audit Logs', href: '/dashboard/settings/audit-logs', icon: ShieldAlert, ownerOnly: true },
+        { name: 'CRM Add-ons', href: '/dashboard/settings/modules', icon: Sparkles, ownerOnly: true },
+        { name: 'Custom Fields', href: '/dashboard/settings/custom-fields', icon: Settings2, ownerOnly: true },
       ]
     }
   ];
@@ -454,42 +438,24 @@ export default function DashboardLayout({ children }) {
         // 2. Sales Manager (sales_admin) sees specified modules
         if (user?.role === 'sales_admin') {
           const managerAllowed = [
-            // Core Sales
             'Dashboard',
             'Leads',
-            'Product Leads',
             'Contacts Directory',
             'Client Organizations',
             'Deals Pipeline',
             'Email Hub',
-            
-            // Activities
             'Tasks',
             'Calls',
             'Meetings',
-            
-            // Inventory & Billing
             'Products',
             'Quotations',
-            'Invoices',
-            
-            // Analytics & BI
             'Reports',
-            'Analytics',
-            
-            // Administration
-            'Users Directory',
-            'Roles & Permissions',
-            'Teams',
-            
-            // Preferences
             'Notifications',
             'Settings',
             'Profile',
-            'CRM Add-ons',
-            'Custom Fields',
-            
-            // Real Estate & Customer Support
+            'Users Directory',
+            'Roles & Permissions',
+            'Teams',
             'RE Overview',
             'RE Leads',
             'RE Contacts',
@@ -504,17 +470,16 @@ export default function DashboardLayout({ children }) {
             'Blocking',
             'Documents Vault',
             'Possessions',
-            'Support Tickets'
+            'Support Tickets',
           ];
           return managerAllowed.includes(link.name);
         }
-
+ 
         // 3. Sales Representative (sales_rep) sees specified modules
         if (user?.role === 'sales_rep') {
           const repAllowed = [
             'Dashboard',
             'Leads',
-            'Product Leads',
             'Contacts Directory',
             'Client Organizations',
             'Deals Pipeline',
@@ -557,13 +522,12 @@ export default function DashboardLayout({ children }) {
           <div className="space-y-0.5">
             {allowedLinks.map((link) => {
               const Icon = link.icon;
-              const isActive = pathname === link.href ||
-                (link.href !== '/dashboard' && link.href !== '/dashboard/settings' && pathname.startsWith(link.href + '/'));
-
+              const isActive = pathname === link.href || (link.href !== '/dashboard' && pathname.startsWith(link.href + '/'));
+              
               // Dynamic Display Names translated by Active Sector Config
               let displayName = link.name;
               const sectorConf = user?.sectorConfig;
-
+              
               if (sectorConf) {
                 const leadTerm = sectorConf.leadTerm || 'Lead';
                 const productTerm = sectorConf.productTerm || 'Product';
@@ -590,16 +554,17 @@ export default function DashboardLayout({ children }) {
                   if (link.name === 'Tasks') displayName = 'My Tasks';
                 }
               }
-
+              
               return (
                 <Link
                   key={link.name}
                   href={link.href}
                   onClick={() => isMobile && setMobileSidebarOpen(false)}
-                  className={`flex items-center gap-2.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${isActive
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 shadow-sm shadow-emerald-500/5'
+                  className={`flex items-center gap-2.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                    isActive 
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 shadow-sm shadow-emerald-500/5' 
                       : 'text-slate-650 hover:bg-slate-100 hover:text-slate-900 border border-transparent'
-                    }`}
+                  }`}
                 >
                   <Icon className={`h-4.5 w-4.5 shrink-0 ${isActive ? 'text-emerald-650 font-bold' : 'text-slate-400 group-hover:text-slate-600'}`} />
                   <span className="truncate">{displayName}</span>
@@ -618,16 +583,14 @@ export default function DashboardLayout({ children }) {
       <aside className="hidden md:flex flex-col w-60 bg-white border-r border-slate-250 shrink-0">
         {/* Logo / Header */}
         <div className="flex items-center gap-2 px-6 py-4.5 border-b border-slate-200 bg-slate-50/50">
-          <div className="flex items-center justify-center shrink-0">
-            <svg width="28" height="28" viewBox="0 0 189 190" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M45.0879 63.4871C45.1245 61.3863 46.7801 59.6719 48.8783 59.5621L111.882 56.2645C115.508 56.0747 117.491 60.4256 114.968 63.0377L50.8679 129.416C48.3455 132.028 43.9281 130.198 43.9912 126.567L45.0879 63.4871Z" fill="#10b981"/>
-              <path d="M131.109 138.872C131.072 140.973 129.417 142.687 127.318 142.797L64.3147 146.094C60.6884 146.284 58.7058 141.933 61.2283 139.321L125.329 72.9434C127.851 70.3313 132.269 72.1609 132.205 75.7916L131.109 138.872Z" fill="#10b981"/>
-              <rect x="76" width="113" height="25" rx="4" fill="#10b981"/>
-              <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="#10b981"/>
-            </svg>
-          </div>
-          <span className="text-[17px] font-extrabold text-slate-800 truncate" title="Innonsh LeadGen">
-            Innonsh <span className="text-emerald-500">LeadGen</span>
+          <svg width="24" height="24" viewBox="0 0 189 190" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+            <path d="M45.0879 63.4871C45.1245 61.3863 46.7801 59.6719 48.8783 59.5621L111.882 56.2645C115.508 56.0747 117.491 60.4256 114.968 63.0377L50.8679 129.416C48.3455 132.028 43.9281 130.198 43.9912 126.567L45.0879 63.4871Z" fill="#10b981"/>
+            <path d="M131.109 138.872C131.072 140.973 129.417 142.687 127.318 142.797L64.3147 146.094C60.6884 146.284 58.7058 141.933 61.2283 139.321L125.329 72.9434C127.851 70.3313 132.269 72.1609 132.205 75.7916L131.109 138.872Z" fill="#10b981"/>
+            <rect x="76" width="113" height="25" rx="4" fill="#10b981"/>
+            <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="#10b981"/>
+          </svg>
+          <span className="text-lg font-bold text-slate-800 tracking-tight truncate" title={user?.companyName ? `${user.companyName} CRM` : "Innonsh LeadGen"}>
+            {user?.companyName ? user.companyName : "Innonsh LeadGen"}
           </span>
         </div>
 
@@ -665,20 +628,18 @@ export default function DashboardLayout({ children }) {
           <div className="flex flex-col w-60 bg-white border-r border-slate-250 h-full animate-in slide-in-from-left duration-250">
             <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-200 bg-slate-50/50">
               <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center shrink-0">
-                  <svg width="24" height="24" viewBox="0 0 189 190" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M45.0879 63.4871C45.1245 61.3863 46.7801 59.6719 48.8783 59.5621L111.882 56.2645C115.508 56.0747 117.491 60.4256 114.968 63.0377L50.8679 129.416C48.3455 132.028 43.9281 130.198 43.9912 126.567L45.0879 63.4871Z" fill="#10b981"/>
-                    <path d="M131.109 138.872C131.072 140.973 129.417 142.687 127.318 142.797L64.3147 146.094C60.6884 146.284 58.7058 141.933 61.2283 139.321L125.329 72.9434C127.851 70.3313 132.269 72.1609 132.205 75.7916L131.109 138.872Z" fill="#10b981"/>
-                    <rect x="76" width="113" height="25" rx="4" fill="#10b981"/>
-                    <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="#10b981"/>
-                  </svg>
-                </div>
-                <span className="text-[15px] font-extrabold text-slate-800 truncate">
-                  Innonsh <span className="text-emerald-500">LeadGen</span>
+                <svg width="22" height="22" viewBox="0 0 189 190" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                  <path d="M45.0879 63.4871C45.1245 61.3863 46.7801 59.6719 48.8783 59.5621L111.882 56.2645C115.508 56.0747 117.491 60.4256 114.968 63.0377L50.8679 129.416C48.3455 132.028 43.9281 130.198 43.9912 126.567L45.0879 63.4871Z" fill="#10b981"/>
+                  <path d="M131.109 138.872C131.072 140.973 129.417 142.687 127.318 142.797L64.3147 146.094C60.6884 146.284 58.7058 141.933 61.2283 139.321L125.329 72.9434C127.851 70.3313 132.269 72.1609 132.205 75.7916L131.109 138.872Z" fill="#10b981"/>
+                  <rect x="76" width="113" height="25" rx="4" fill="#10b981"/>
+                  <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="#10b981"/>
+                </svg>
+                <span className="text-base font-bold text-slate-800 truncate tracking-tight">
+                  {user?.companyName ? user.companyName : "Innonsh LeadGen"}
                 </span>
               </div>
-              <button
-                onClick={() => setMobileSidebarOpen(false)}
+              <button 
+                onClick={() => setMobileSidebarOpen(false)} 
                 className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800"
               >
                 <X className="h-5 w-5" />
@@ -718,13 +679,13 @@ export default function DashboardLayout({ children }) {
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 shrink-0 shadow-sm printable-hidden z-20">
           <div className="flex items-center gap-3">
             {/* Mobile menu trigger */}
-            <button
+            <button 
               onClick={() => setMobileSidebarOpen(true)}
               className="p-1 rounded-lg text-slate-500 hover:text-slate-800 md:hidden"
             >
               <Menu className="h-6 w-6" />
             </button>
-
+            
             {/* Welcome greeting */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
               <span className="text-xs md:text-sm font-bold text-slate-700">
@@ -741,8 +702,8 @@ export default function DashboardLayout({ children }) {
           <div className="flex items-center gap-4 relative">
             {/* REAL-TIME NOTIFICATIONS BELL CONTAINER */}
             <div className="relative">
-              <button
-                onClick={() => setBellDropdownOpen(!bellDropdownOpen)}
+              <button 
+                onClick={() => { setBellDropdownOpen(!bellDropdownOpen); setProfileDropdownOpen(false); }}
                 className="p-1.5 rounded-full hover:bg-slate-105 text-slate-500 hover:text-slate-800 transition relative cursor-pointer"
               >
                 <Bell className="h-4.5 w-4.5" />
@@ -759,7 +720,7 @@ export default function DashboardLayout({ children }) {
                   <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                     <span className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Recent Alerts</span>
                     {unreadCount > 0 && (
-                      <button
+                      <button 
                         onClick={handleMarkAllRead}
                         className="text-[9px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
                       >
@@ -775,20 +736,22 @@ export default function DashboardLayout({ children }) {
                       </div>
                     ) : (
                       notifications.map((notice) => (
-                        <div
+                        <div 
                           key={notice._id}
                           onClick={() => { handleMarkSingleRead(notice._id); if (notice.link) router.push(notice.link); setBellDropdownOpen(false); }}
-                          className={`p-3 hover:bg-slate-50 transition cursor-pointer text-left flex items-start gap-3 ${!notice.isRead ? 'bg-indigo-50/20' : ''
-                            }`}
+                          className={`p-3 hover:bg-slate-50 transition cursor-pointer text-left flex items-start gap-3 ${
+                            !notice.isRead ? 'bg-indigo-50/20' : ''
+                          }`}
                         >
-                          <div className={`mt-0.5 h-6.5 w-6.5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${notice.type === 'Invoice' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                              notice.type === 'Task' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
-                                notice.type === 'Lead' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                                  'bg-slate-100 text-slate-750 border'
-                            }`}>
+                          <div className={`mt-0.5 h-6.5 w-6.5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                            notice.type === 'Invoice' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                            notice.type === 'Task' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                            notice.type === 'Lead' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                            'bg-slate-100 text-slate-750 border'
+                          }`}>
                             {notice.type === 'Invoice' ? '🧾' :
-                              notice.type === 'Task' ? '🚨' :
-                                notice.type === 'Lead' ? '🤝' : '🔔'}
+                             notice.type === 'Task' ? '🚨' :
+                             notice.type === 'Lead' ? '🤝' : '🔔'}
                           </div>
 
                           <div className="flex-1 min-w-0">
@@ -804,8 +767,8 @@ export default function DashboardLayout({ children }) {
                   </div>
 
                   <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 text-center">
-                    <Link
-                      href="/dashboard/notifications"
+                    <Link 
+                      href="/dashboard/notifications" 
                       onClick={() => setBellDropdownOpen(false)}
                       className="text-[9px] font-black text-slate-500 hover:text-slate-800 uppercase tracking-widest hover:underline"
                     >
@@ -816,9 +779,47 @@ export default function DashboardLayout({ children }) {
               )}
             </div>
 
-            {/* Profile trigger thumbnail */}
-            <div className="h-8 w-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] font-mono font-black text-slate-600 uppercase">
-              {user?.name?.slice(0, 2)}
+            {/* Profile trigger thumbnail & dropdown */}
+            <div className="relative">
+              <button 
+                onClick={() => { setProfileDropdownOpen(!profileDropdownOpen); setBellDropdownOpen(false); }}
+                className="h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center justify-center text-[10px] font-mono font-black text-slate-600 uppercase hover:scale-[1.03] active:scale-[0.97] transition cursor-pointer"
+              >
+                {user?.name ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U'}
+              </button>
+
+              {profileDropdownOpen && (
+                <div className="absolute right-0 mt-3 w-48 bg-white border border-slate-200 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-3 duration-250 z-50">
+                  <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                    <p className="text-xs font-bold text-slate-800 truncate leading-none">{user?.name}</p>
+                    <p className="text-[10px] text-slate-400 truncate mt-1.5 font-medium">{user?.email}</p>
+                  </div>
+                  
+                  <div className="py-1">
+                    <Link
+                      href="/dashboard/profile"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-655 hover:bg-slate-50 hover:text-slate-900 transition"
+                    >
+                      <UserCog className="h-4 w-4 text-slate-400" />
+                      Profile Settings
+                    </Link>
+                  </div>
+
+                  <div className="border-t border-slate-100 py-1">
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        handleLogout();
+                      }}
+                      className="flex items-center gap-2.5 w-full text-left px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>

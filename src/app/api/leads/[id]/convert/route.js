@@ -2,6 +2,8 @@ import connectToDatabase from '@/lib/db';
 import Lead from '@/lib/models/Lead';
 import Deal from '@/lib/models/Deal';
 import Contact from '@/lib/models/Contact';
+import Task from '@/lib/models/Task';
+import ClientOrganization from '@/lib/models/ClientOrganization';
 import { supabase } from '@/lib/supabaseClient';
 import { mapDealToFrontend, mapContactToFrontend } from '@/lib/dbMapper';
 import { getUserFromRequest } from '@/lib/auth';
@@ -60,6 +62,68 @@ export async function POST(req, { params }) {
 
       const targetAssignedTo = lead.assigned_to || decodedUser.id;
 
+      // Fetch dynamic first pipeline stage of the sector
+      let firstStage = 'Prospecting';
+      if (lead.org_id) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('sector')
+          .eq('id', lead.org_id)
+          .maybeSingle();
+        if (orgData && orgData.sector) {
+          const { data: sectorConfig } = await supabase
+            .from('saas_sectors_config')
+            .select('pipeline_stages')
+            .eq('id', orgData.sector)
+            .maybeSingle();
+          if (sectorConfig && sectorConfig.pipeline_stages && sectorConfig.pipeline_stages.length > 0) {
+            firstStage = sectorConfig.pipeline_stages[0];
+          }
+        }
+      }
+
+      // Find or create Client Organization
+      let organizationId = null;
+      if (lead.company && lead.company.trim()) {
+        const companyName = lead.company.trim();
+        const { data: existingOrg, error: orgFindError } = await supabase
+          .from('client_organizations')
+          .select('id')
+          .eq('org_id', lead.org_id)
+          .ilike('name', companyName)
+          .maybeSingle();
+
+        if (orgFindError) {
+          console.error('Supabase find client organization error:', orgFindError);
+        }
+
+        if (existingOrg) {
+          organizationId = existingOrg.id;
+        } else {
+          const { data: newOrg, error: orgCreateError } = await supabase
+            .from('client_organizations')
+            .insert([
+              {
+                org_id: lead.org_id,
+                name: companyName,
+                city: lead.city || '',
+                state: lead.state || '',
+                country: lead.country || 'India',
+                assigned_to: targetAssignedTo,
+                custom_data: lead.custom_data || {}
+              }
+            ])
+            .select('id')
+            .single();
+
+          if (orgCreateError) {
+            console.error('Supabase create client organization error:', orgCreateError);
+          } else if (newOrg) {
+            organizationId = newOrg.id;
+          }
+        }
+      }
+
       // 1. Create the Deal card in Supabase
       const { data: newDeal, error: dealError } = await supabase
         .from('deals')
@@ -67,13 +131,16 @@ export async function POST(req, { params }) {
           {
             title: dealTitle.trim(),
             value: Number(dealValue),
-            stage: 'Prospecting', // New deals start at Prospecting stage
+            stage: firstStage, // Dynamically set first pipeline stage of the sector
             closing_date: new Date(closingDate).toISOString(),
             lead_id: lead.id,
+            organization_id: organizationId,
             assigned_to: targetAssignedTo, // Assign to current rep or owner
             company: lead.company,
             contact_email: lead.email || '',
             contact_phone: lead.phone || '',
+            custom_data: lead.custom_data || {},
+            org_id: lead.org_id
           }
         ])
         .select('*')
@@ -99,9 +166,12 @@ export async function POST(req, { params }) {
             city: lead.city || '',
             state: lead.state || '',
             country: lead.country || 'India',
+            organization_id: organizationId,
             assigned_to: targetAssignedTo,
             lead_id: lead.id,
-            status: 'Active'
+            status: 'Active',
+            custom_data: lead.custom_data || {},
+            org_id: lead.org_id
           }
         ])
         .select('*')
@@ -124,6 +194,20 @@ export async function POST(req, { params }) {
             created_by_name: decodedUser.name,
           }
         ]);
+
+      // 3.5. Update pending tasks linked to this Lead to now link to the new Contact and set correct assignee
+      try {
+        await supabase
+          .from('tasks')
+          .update({ 
+            contact_id: newContact.id,
+            assigned_to: targetAssignedTo
+          })
+          .eq('lead_id', lead.id)
+          .eq('status', 'Pending');
+      } catch (err) {
+        console.error('Failed to link tasks to converted contact:', err);
+      }
 
       // 4. Update Lead Status to "Qualified"
       await supabase
@@ -164,6 +248,37 @@ export async function POST(req, { params }) {
 
       const targetAssignedTo = lead.assignedTo || decodedUser.id;
 
+      // Find or create Client Organization in Mongoose
+      let organizationId = null;
+      if (lead.company && lead.company.trim()) {
+        const companyName = lead.company.trim();
+        let existingOrg = await ClientOrganization.findOne({
+          orgId: lead.orgId,
+          name: { $regex: new RegExp(`^${companyName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`, 'i') }
+        });
+
+        if (existingOrg) {
+          organizationId = existingOrg._id;
+        } else {
+          const customFieldsData = {};
+          if (lead.customFields && Array.isArray(lead.customFields)) {
+            lead.customFields.forEach(f => {
+              customFieldsData[f.label] = f.value;
+            });
+          }
+          const newOrg = await ClientOrganization.create({
+            orgId: lead.orgId,
+            name: companyName,
+            city: lead.city || '',
+            state: lead.state || '',
+            country: lead.country || 'India',
+            assignedTo: targetAssignedTo,
+            customData: customFieldsData
+          });
+          organizationId = newOrg._id;
+        }
+      }
+
       // 2. Create the Deal card in Mongoose
       const newDeal = await Deal.create({
         title: dealTitle.trim(),
@@ -171,10 +286,12 @@ export async function POST(req, { params }) {
         stage: 'Prospecting', // New deals start at Prospecting stage
         closingDate: new Date(closingDate),
         leadId: lead._id,
+        organizationId: organizationId,
         assignedTo: targetAssignedTo, // Assign to current rep or owner
         company: lead.company,
         contactEmail: lead.email,
         contactPhone: lead.phone,
+        orgId: lead.orgId
       });
 
       // 3. Auto Create a Permanent Customer Contact Record
@@ -189,9 +306,11 @@ export async function POST(req, { params }) {
         city: lead.city || '',
         state: lead.state || '',
         country: lead.country || 'India',
+        organizationId: organizationId,
         assignedTo: targetAssignedTo,
         leadId: lead._id,
-        status: 'Active'
+        status: 'Active',
+        orgId: lead.orgId
       });
 
       // 4. Log conversion note inside lead's timeline
@@ -200,6 +319,16 @@ export async function POST(req, { params }) {
         createdBy: decodedUser.id,
         createdByName: decodedUser.name,
       });
+
+      // 4.5. Update pending tasks linked to this Lead to now link to the new Contact and set correct assignee
+      try {
+        await Task.updateMany(
+          { leadId: lead._id, status: 'Pending' },
+          { contactId: newContact._id, assignedTo: targetAssignedTo }
+        );
+      } catch (err) {
+        console.error('Failed to link tasks to converted contact:', err);
+      }
 
       await lead.save();
 

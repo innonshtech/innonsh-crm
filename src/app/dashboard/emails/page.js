@@ -20,7 +20,8 @@ import {
   Clock,
   ArrowRight,
   User,
-  MessageSquare
+  MessageSquare,
+  Trash2
 } from 'lucide-react';
 
 export default function EmailHubPage() {
@@ -32,9 +33,71 @@ export default function EmailHubPage() {
   const [sending, setSending] = useState(false);
   const [activeTab, setActiveTab] = useState('leads'); // leads or contacts
   const [syncing, setSyncing] = useState(false);
+  const [selectedEmailIds, setSelectedEmailIds] = useState([]);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleSelectEmail = (id) => {
+    setSelectedEmailIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    const visibleIds = filteredEmails.map((e) => e._id);
+    const allSelected = visibleIds.every((id) => selectedEmailIds.includes(id));
+    if (allSelected) {
+      setSelectedEmailIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+    } else {
+      setSelectedEmailIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  };
+
+  const handleDeleteEmails = async (idsToDelete) => {
+    if (!idsToDelete || idsToDelete.length === 0) return;
+    
+    const confirmMessage = idsToDelete.length === 1
+      ? 'Are you sure you want to delete this email campaign log?'
+      : `Are you sure you want to delete ${idsToDelete.length} selected email campaign logs?`;
+      
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      setDeleting(true);
+      const res = await fetch('/api/emails', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: idsToDelete })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setSyncAlert({
+          type: 'success',
+          message: data.message || 'Selected campaign logs deleted successfully.'
+        });
+        setSelectedEmailIds((prev) => prev.filter((id) => !idsToDelete.includes(id)));
+        await fetchData();
+      } else {
+        setSyncAlert({
+          type: 'error',
+          message: data.error || 'Failed to delete selected logs.'
+        });
+      }
+    } catch (err) {
+      console.error('Error deleting email logs:', err);
+      setSyncAlert({
+        type: 'error',
+        message: 'A network error occurred while trying to delete logs.'
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Form states
   const [targetId, setTargetId] = useState('');
+  const [cc, setCc] = useState('');
+  const [showCc, setShowCc] = useState(false);
   const [subject, setSubject] = useState('');
   const [proposalFile, setProposalFile] = useState('Proposal.pdf');
   const [proposalFileData, setProposalFileData] = useState('');
@@ -168,7 +231,8 @@ export default function EmailHubPage() {
         proposalFile: proposalFile || '',
         proposalFileData: proposalFileData || '',
         proposalFileMimeType: proposalFileMimeType || '',
-        channel: 'email'
+        channel: 'email',
+        cc: cc.trim()
       };
 
       const res = await fetch('/api/emails', {
@@ -181,6 +245,8 @@ export default function EmailHubPage() {
       if (res.ok) {
         setFormSuccess('Email dispatched successfully! Tracking pixel and proposal attachment download links are embedded.');
         setSubject('');
+        setCc('');
+        setShowCc(false);
         setProposalFileData('');
         setProposalFileMimeType('');
         setProposalFile('Proposal.pdf');
@@ -242,7 +308,8 @@ export default function EmailHubPage() {
         proposalFile: proposalFile || '',
         proposalFileData: proposalFileData || '',
         proposalFileMimeType: proposalFileMimeType || '',
-        channel: mode // 'whatsapp' or 'both'
+        channel: mode, // 'whatsapp' or 'both'
+        cc: cc.trim()
       };
 
       const res = await fetch('/api/emails', {
@@ -275,6 +342,8 @@ export default function EmailHubPage() {
           
         setFormSuccess(successMessage);
         setSubject('');
+        setCc('');
+        setShowCc(false);
         setProposalFileData('');
         setProposalFileMimeType('');
         setProposalFile('Proposal.pdf');
@@ -409,7 +478,7 @@ export default function EmailHubPage() {
       </div>
 
       {/* Analytics Summary Cards Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Card 1: Total Dispatch */}
         <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex items-center justify-between hover:shadow-md transition duration-200">
           <div>
@@ -422,22 +491,7 @@ export default function EmailHubPage() {
           </div>
         </div>
 
-        {/* Card 2: Opens Tracker */}
-        <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex items-center justify-between hover:shadow-md transition duration-200">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Opens Summary</span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl font-black text-slate-800 block">{totalOpens}</span>
-              <span className="text-xs font-bold text-emerald-600 font-mono">({openRate}%)</span>
-            </div>
-            <span className="text-[10px] text-slate-500 font-medium block mt-1.5">Unique views registered</span>
-          </div>
-          <div className="h-11 w-11 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 shrink-0">
-            <Eye className="h-5 w-5" />
-          </div>
-        </div>
-
-        {/* Card 3: Proposal Downloads */}
+        {/* Card 2: Proposal Downloads */}
         <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex items-center justify-between hover:shadow-md transition duration-200">
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">PDF Downloads</span>
@@ -445,14 +499,14 @@ export default function EmailHubPage() {
               <span className="text-2xl font-black text-slate-800 block">{totalDownloads}</span>
               <span className="text-xs font-bold text-sky-600 font-mono">({downloadRate}%)</span>
             </div>
-            <span className="text-[10px] text-slate-500 font-medium block mt-1.5">Lead Score boosted (+20)</span>
+            <span className="text-[10px] text-slate-500 font-medium block mt-1.5">High-Intent Document Fetches</span>
           </div>
           <div className="h-11 w-11 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-550 shrink-0">
             <Download className="h-5 w-5" />
           </div>
         </div>
 
-        {/* Card 4: Response Rate */}
+        {/* Card 3: Response Rate */}
         <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex items-center justify-between hover:shadow-md transition duration-200">
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Client Responses</span>
@@ -538,6 +592,36 @@ export default function EmailHubPage() {
                   ))}
                 </select>
               )
+            )}
+          </div>
+
+          {/* CC Recipient Selection */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                CC Recipients
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  if (showCc) {
+                    setCc(''); // Clear input if user closes the field
+                  }
+                  setShowCc(!showCc);
+                }}
+                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
+              >
+                {showCc ? '✕ Remove CC' : '+ Add CC'}
+              </button>
+            </div>
+            {showCc && (
+              <input
+                type="text"
+                value={cc}
+                onChange={(e) => setCc(e.target.value)}
+                placeholder="manager@company.com, info@company.com"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-indigo-500 transition"
+              />
             )}
           </div>
 
@@ -703,6 +787,17 @@ export default function EmailHubPage() {
           </div>
 
           <div className="flex w-full md:w-auto items-center gap-3 shrink-0 flex-wrap md:flex-nowrap">
+            {selectedEmailIds.length > 0 && (
+              <button
+                onClick={() => handleDeleteEmails(selectedEmailIds)}
+                disabled={deleting}
+                className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-lg shadow-sm border border-rose-550 transition disabled:opacity-50 active:scale-[0.98] cursor-pointer"
+                title="Delete selected email logs from history."
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete Selected ({selectedEmailIds.length})
+              </button>
+            )}
             {/* Manual Sync Replies Button */}
             <button
               onClick={handleSyncEmails}
@@ -769,21 +864,40 @@ export default function EmailHubPage() {
             <table className="w-full text-xs font-medium text-slate-600 min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-100 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                  <th className="pb-3 text-left pl-2">Recipient</th>
+                  <th className="pb-3 text-left pl-2 w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredEmails.length > 0 && filteredEmails.every(e => selectedEmailIds.includes(e._id))}
+                      onChange={handleSelectAll}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-3.5 w-3.5"
+                    />
+                  </th>
+                  <th className="pb-3 text-left">Recipient</th>
                   <th className="pb-3 text-left">Subject Line</th>
-                  <th className="pb-3 text-center">Open Statistics</th>
                   <th className="pb-3 text-center">Proposal PDF File</th>
                   <th className="pb-3 text-center">Status States</th>
                   <th className="pb-3 text-right pr-2">Dispatched At</th>
+                  <th className="pb-3 text-center pr-2 w-10">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredEmails.map((email) => {
                   const rType = getRecipientType(email);
+                  const isSelected = selectedEmailIds.includes(email._id);
                   return (
-                    <tr key={email._id} className="hover:bg-slate-50/50 transition">
+                    <tr key={email._id} className={`hover:bg-slate-50/50 transition ${isSelected ? 'bg-indigo-50/30 hover:bg-indigo-50/45' : ''}`}>
+                      {/* Checkbox column */}
+                      <td className="py-3.5 pl-2 text-left w-10">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleSelectEmail(email._id)}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-3.5 w-3.5"
+                        />
+                      </td>
+
                       {/* Recipient info */}
-                      <td className="py-3.5 pl-2 text-left">
+                      <td className="py-3.5 text-left">
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 text-[8px] font-black uppercase rounded border ${rType.color}`}>
                             {rType.label}
@@ -802,16 +916,6 @@ export default function EmailHubPage() {
                         <span className="text-[10px] text-slate-500 block truncate mt-0.5 max-w-[200px]">
                           {email.body}
                         </span>
-                      </td>
-
-                      {/* Opens counter */}
-                      <td className="py-3.5 text-center">
-                        <div className="inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded bg-slate-50 border border-slate-200 font-bold">
-                          <Eye className={`h-3.5 w-3.5 ${email.opensCount > 0 ? 'text-emerald-500' : 'text-slate-400'}`} />
-                          <span className={email.opensCount > 0 ? 'text-emerald-700 font-extrabold' : 'text-slate-600'}>
-                            {email.opensCount || 0} opens
-                          </span>
-                        </div>
                       </td>
 
                       {/* Attached proposal */}
@@ -845,12 +949,12 @@ export default function EmailHubPage() {
                             {email.channel === 'whatsapp' ? 'WA 📱' : (email.channel === 'both' ? 'Both ⚡' : 'Email 📧')}
                           </span>
 
-                          {/* Open indicator */}
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${email.opensCount > 0
+                          {/* Download indicator */}
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${email.downloadsCount > 0
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : 'bg-slate-50 text-slate-400 border-slate-200'
                             }`}>
-                            {email.opensCount > 0 ? 'Opened 👁️' : 'Sent'}
+                            {email.downloadsCount > 0 ? 'Downloaded 📥' : 'Sent'}
                           </span>
 
                           {/* Reply indicator */}
@@ -875,6 +979,18 @@ export default function EmailHubPage() {
                         <span className="block text-[9px] text-slate-400 mt-0.5">
                           {new Date(email.createdAt).toLocaleTimeString('en-IN', { timeStyle: 'short' })}
                         </span>
+                      </td>
+
+                      {/* Actions column */}
+                      <td className="py-3.5 text-center pr-2 w-10">
+                        <button
+                          onClick={() => handleDeleteEmails([email._id])}
+                          disabled={deleting}
+                          className="text-slate-400 hover:text-rose-600 p-1 rounded transition duration-150 active:scale-90 disabled:opacity-50 cursor-pointer"
+                          title="Delete Email Log"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -916,6 +1032,12 @@ export default function EmailHubPage() {
                     <span className="text-slate-400 font-medium">To:</span>
                     <span className="font-extrabold text-slate-800">{getRecipientName(activeConversationEmail)}</span>
                   </div>
+                  {activeConversationEmail.cc && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 font-medium">CC:</span>
+                      <span className="font-semibold text-slate-700">{activeConversationEmail.cc}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-[10px]">
                     <span className="text-slate-400 font-medium">Sent At:</span>
                     <span className="text-slate-600 font-semibold font-mono">
@@ -934,11 +1056,11 @@ export default function EmailHubPage() {
                     {activeConversationEmail.channel === 'whatsapp' ? 'WA 📱' : (activeConversationEmail.channel === 'both' ? 'Both ⚡' : 'Email 📧')}
                   </span>
                   <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold border ${
-                    activeConversationEmail.opensCount > 0
+                    activeConversationEmail.downloadsCount > 0
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : 'bg-slate-50 text-slate-400 border-slate-200'
                   }`}>
-                    {activeConversationEmail.opensCount > 0 ? `Opened (${activeConversationEmail.opensCount}x) 👁️` : 'Sent'}
+                    {activeConversationEmail.downloadsCount > 0 ? `Downloaded (${activeConversationEmail.downloadsCount}x) 📥` : 'Sent'}
                   </span>
                 </div>
               </div>

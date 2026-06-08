@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { 
   Loader2, 
   Search, 
@@ -23,11 +24,33 @@ import {
   AlertTriangle,
   ChevronRight,
   ShieldCheck,
-  Building2
+  Building2,
+  Tag,
+  Hash,
+  DollarSign
 } from 'lucide-react';
+
+const getCustomFieldIcon = (iconName) => {
+  switch (iconName) {
+    case 'user': return User;
+    case 'building': return Building;
+    case 'phone': return Phone;
+    case 'mail': return Mail;
+    case 'globe': return Globe;
+    case 'calendar': return Calendar;
+    case 'dollarsign': return DollarSign;
+    case 'briefcase': return Briefcase;
+    case 'info': return Info;
+    case 'tag': return Tag;
+    case 'hash': return Hash;
+    case 'messagecircle': return MessageCircle;
+    default: return null;
+  }
+};
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState([]);
+  const [clientOrganizations, setClientOrganizations] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [salesReps, setSalesReps] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,12 +85,30 @@ export default function ContactsPage() {
   
   const [formError, setFormError] = useState('');
 
+  // Org-wide customizations and standard field visibility
+  const [orgCustomFieldDefs, setOrgCustomFieldDefs] = useState([]);
+  const [hiddenStandardFields, setHiddenStandardFields] = useState([]);
+  const [customFieldsData, setCustomFieldsData] = useState({});
+  const [sector, setSector] = useState('');
+
   // Toast Helper
   const showToast = (text, type = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => {
       setToastMessage({ text: '', type: '' });
     }, 4000);
+  };
+
+  const fetchClientOrganizations = async () => {
+    try {
+      const res = await fetch('/api/client-organizations');
+      if (res.ok) {
+        const data = await res.json();
+        setClientOrganizations(data.organizations || []);
+      }
+    } catch (err) {
+      console.error('Fetch client orgs failed:', err);
+    }
   };
 
   // Fetch current user and session details
@@ -86,6 +127,26 @@ export default function ContactsPage() {
               setSalesReps(repsData.users || []);
             }
           }
+
+          // Fetch custom fields schema + standard visibility
+          const [cfRes, sfRes, suggRes] = await Promise.all([
+            fetch('/api/tenant/custom-fields?module=contacts'),
+            fetch('/api/tenant/standard-fields'),
+            fetch('/api/tenant/sector-suggestions?module=contacts')
+          ]);
+          if (cfRes.ok) {
+            const cfData = await cfRes.json();
+            setOrgCustomFieldDefs(cfData.fields || []);
+          }
+          if (sfRes.ok) {
+            const sfData = await sfRes.json();
+            setHiddenStandardFields(sfData.hiddenFields || []);
+          }
+          if (suggRes.ok) {
+            const suggData = await suggRes.json();
+            setSector(suggData.sector || 'General');
+          }
+          fetchClientOrganizations();
         }
       } catch (err) {
         console.error('Contacts page init failed:', err);
@@ -108,6 +169,7 @@ export default function ContactsPage() {
         const data = await res.json();
         setContacts(data.contacts || []);
       }
+      fetchClientOrganizations();
     } catch (err) {
       console.error('Fetch contacts failed:', err);
     } finally {
@@ -116,6 +178,7 @@ export default function ContactsPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchContacts();
   }, [search, statusFilter, repFilter]);
 
@@ -142,6 +205,13 @@ export default function ContactsPage() {
   const handleCreateContact = async (e) => {
     e.preventDefault();
     setFormError('');
+
+    const trimmedEmail = email.trim();
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setFormError('Please enter a valid email address.');
+      return;
+    }
+
     setActionLoading(true);
 
     const contactData = {
@@ -156,7 +226,8 @@ export default function ContactsPage() {
       state: state.trim(),
       country: country.trim(),
       assignedTo: assignedTo || undefined,
-      status
+      status,
+      customData: customFieldsData
     };
 
     try {
@@ -187,6 +258,13 @@ export default function ContactsPage() {
   const handleUpdateContact = async (e) => {
     e.preventDefault();
     setFormError('');
+
+    const trimmedEmail = email.trim();
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setFormError('Please enter a valid email address.');
+      return;
+    }
+
     setActionLoading(true);
 
     const contactData = {
@@ -201,7 +279,8 @@ export default function ContactsPage() {
       state: state.trim(),
       country: country.trim(),
       assignedTo: assignedTo || undefined,
-      status
+      status,
+      customData: customFieldsData
     };
 
     try {
@@ -262,6 +341,7 @@ export default function ContactsPage() {
     setAssignedTo('');
     setStatus('Active');
     setFormError('');
+    setCustomFieldsData({});
   };
 
   const populateEditForm = (contact) => {
@@ -270,7 +350,6 @@ export default function ContactsPage() {
     setCompany(contact.company || '');
     setDesignation(contact.designation || '');
     setEmail(contact.email || '');
-    Phone(contact.phone || '');
     setPhone(contact.phone || '');
     setWhatsapp(contact.whatsapp || '');
     setCity(contact.city || '');
@@ -279,6 +358,7 @@ export default function ContactsPage() {
     setAssignedTo(contact.assignedTo?._id || contact.assignedTo || '');
     setStatus(contact.status || 'Active');
     setFormError('');
+    setCustomFieldsData(contact.customData || {});
     setEditModalOpen(true);
   };
 
@@ -388,7 +468,7 @@ export default function ContactsPage() {
           </span>
           <input
             type="text"
-            placeholder="Search by name, company, email..."
+            placeholder="Search by name, organization, email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 transition"
@@ -452,7 +532,7 @@ export default function ContactsPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
                   <th className="px-6 py-4">Customer Name</th>
-                  <th className="px-6 py-4">Corporate Company</th>
+                  <th className="px-6 py-4">Organization</th>
                   <th className="px-6 py-4">Contact Channels</th>
                   <th className="px-6 py-4">Zonal Location</th>
                   <th className="px-6 py-4">Account Status</th>
@@ -480,8 +560,17 @@ export default function ContactsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-bold text-slate-700">
-                      {contact.company || <span className="text-slate-400 italic">Individual Account</span>}
+                    <td className="px-6 py-4 font-bold text-slate-700" onClick={(e) => { if (contact.organization) e.stopPropagation(); }}>
+                      {contact.organization ? (
+                        <Link 
+                          href={`/dashboard/client-organizations?search=${encodeURIComponent(contact.organization.name)}`}
+                          className="text-emerald-600 font-extrabold hover:text-emerald-500 hover:underline"
+                        >
+                          🏢 {contact.organization.name}
+                        </Link>
+                      ) : (
+                        contact.company || <span className="text-slate-400 italic">Individual Account</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 space-y-1">
                       {contact.email && (
@@ -562,9 +651,16 @@ export default function ContactsPage() {
                   <h2 className="text-sm font-black text-slate-800 leading-tight">
                     {selectedContact.firstName} {selectedContact.lastName}
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5 font-bold">
-                    {selectedContact.company || 'Individual Client'}
-                  </p>
+                  <div className="text-xs text-slate-400 mt-0.5 font-bold">
+                    {selectedContact.organization ? (
+                      <Link 
+                        href={`/dashboard/client-organizations?search=${encodeURIComponent(selectedContact.organization.name)}`}
+                        className="text-emerald-600 font-extrabold hover:text-emerald-500 hover:underline"
+                      >
+                        🏢 {selectedContact.organization.name}
+                      </Link>
+                    ) : (selectedContact.company || 'Individual Client')}
+                  </div>
                 </div>
               </div>
               
@@ -600,7 +696,7 @@ export default function ContactsPage() {
                     {selectedContact.status} Customers
                   </span>
                 </div>
-                {selectedContact.whatsapp && (
+                {selectedContact.whatsapp && !hiddenStandardFields.includes('contacts:whatsapp') && (
                   <button
                     onClick={() => triggerWhatsApp(selectedContact)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-450 text-white text-xs font-bold transition shadow-sm active:scale-95 cursor-pointer"
@@ -628,7 +724,7 @@ export default function ContactsPage() {
                       <span>{selectedContact.phone || 'No phone set'}</span>
                     </a>
                   </div>
-                  {selectedContact.designation && (
+                  {selectedContact.designation && !hiddenStandardFields.includes('contacts:designation') && (
                     <div className="space-y-1 col-span-2">
                       <span className="text-[10px] font-bold text-slate-400 uppercase block">Corporate Job Title</span>
                       <div className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold mt-0.5">
@@ -641,13 +737,15 @@ export default function ContactsPage() {
 
                 {/* Location attributes */}
                 <div className="border-t border-slate-100 pt-3.5 grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Zonal address</span>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold mt-0.5">
-                      <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                      <span>{selectedContact.city ? `${selectedContact.city}, ${selectedContact.state || ''}` : 'India'}</span>
+                  {!hiddenStandardFields.includes('contacts:city') && (
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Zonal address</span>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold mt-0.5">
+                        <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        <span>{selectedContact.city ? `${selectedContact.city}, ${selectedContact.state || ''}` : 'India'}</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Manager attributed</span>
                     <div className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold mt-0.5">
@@ -666,6 +764,25 @@ export default function ContactsPage() {
                   </div>
                 )}
               </div>
+
+              {/* Dynamic Org Custom Fields Box */}
+              {orgCustomFieldDefs.length > 0 && (
+                <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-4">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block border-b border-slate-100 pb-1.5">Industry Specifications ({sector})</span>
+                  <div className="grid grid-cols-2 gap-4">
+                    {orgCustomFieldDefs.map((field) => {
+                      const val = selectedContact.customData?.[field.field_key];
+                      if (val === undefined || val === '') return null;
+                      return (
+                        <div key={field.id} className="space-y-0.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">{field.field_label}</span>
+                          <span className="text-xs text-slate-700 font-extrabold block">{val}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Admin delete card */}
               {currentUser?.role !== 'sales_rep' && (
@@ -691,155 +808,293 @@ export default function ContactsPage() {
       {/* --- ADD / CREATE MANUAL CONTACT MODAL --- */}
       {addModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4 py-6 overflow-y-auto animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-2xl flex flex-col shadow-2xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="px-6 py-5 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
               <h2 className="text-base font-bold text-slate-800 flex items-center gap-1.5">
                 <PlusCircle className="h-5 w-5 text-emerald-500" />
                 Add New Permanent Customer Contact
               </h2>
-              <button onClick={() => setAddModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-850">
+              <button 
+                onClick={() => setAddModalOpen(false)} 
+                className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-855 focus:outline-none"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleCreateContact} className="p-6 space-y-4.5 bg-white">
+            <form onSubmit={handleCreateContact} className="flex-1 overflow-y-auto p-6 space-y-6 bg-white scrollbar-thin">
               {formError && (
-                <div className="p-3 rounded-lg bg-rose-50 border border-rose-100 text-xs text-rose-600 font-bold">
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-100 text-xs text-rose-600 font-bold animate-in fade-in">
                   {formError}
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">First Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="E.g. Rajesh"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Last Name</label>
-                  <input
-                    type="text"
-                    placeholder="E.g. Kumar"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Company Name</label>
-                  <input
-                    type="text"
-                    placeholder="E.g. Innonsh Tech"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Designation</label>
-                  <input
-                    type="text"
-                    placeholder="E.g. CTO / Tech Lead"
-                    value={designation}
-                    onChange={(e) => setDesignation(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Email Address</label>
-                  <input
-                    type="email"
-                    placeholder="client@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number</label>
-                  <input
-                    type="text"
-                    placeholder="+91 998877"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">WhatsApp Mobile</label>
-                  <input
-                    type="text"
-                    placeholder="99999"
-                    value={whatsapp}
-                    onChange={(e) => setWhatsapp(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">City</label>
-                  <input
-                    type="text"
-                    placeholder="Pune"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">State</label>
-                  <input
-                    type="text"
-                    placeholder="Maharashtra"
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {(currentUser?.role === 'owner' || currentUser?.role === 'sales_admin') && (
+              {/* Section 1: Identity & Primary Info */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Primary Details</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Allocate Account Manager</label>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">First Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="E.g. Rajesh"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Last Name</label>
+                    <input
+                      type="text"
+                      placeholder="E.g. Kumar"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 transition"
+                    />
+                  </div>
+                </div>
+
+                <div className={`grid grid-cols-1 md:grid-cols-${hiddenStandardFields.includes('contacts:designation') ? '1' : '2'} gap-4`}>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Organization Name</label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                        <Building className="h-4 w-4" />
+                      </span>
+                      <input
+                        type="text"
+                        list="organizations-datalist"
+                        placeholder="E.g. Innonsh Tech"
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 transition"
+                      />
+                    </div>
+                    <datalist id="organizations-datalist">
+                      {clientOrganizations.map(o => (
+                        <option key={o._id || o.id} value={o.name} />
+                      ))}
+                    </datalist>
+                  </div>
+                  {!hiddenStandardFields.includes('contacts:designation') && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Designation</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                          <Briefcase className="h-3.5 w-3.5" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="E.g. CTO / Tech Lead"
+                          value={designation}
+                          onChange={(e) => setDesignation(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 transition"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 2: Contact Details */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Communication channels</span>
+                <div className={`grid grid-cols-1 md:grid-cols-${hiddenStandardFields.includes('contacts:whatsapp') ? '2' : '3'} gap-4`}>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Email Address</label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                        <Mail className="h-3.5 w-3.5" />
+                      </span>
+                      <input
+                        type="email"
+                        placeholder="client@company.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 transition"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number</label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                        <Phone className="h-3.5 w-3.5" />
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="+91 99999 88888"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 transition"
+                      />
+                    </div>
+                  </div>
+                  {!hiddenStandardFields.includes('contacts:whatsapp') && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">WhatsApp Mobile</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-emerald-500 pointer-events-none">
+                          <MessageCircle className="h-3.5 w-3.5" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="99999"
+                          value={whatsapp}
+                          onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, ''))}
+                          className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 transition"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 3: Location Details */}
+              {!hiddenStandardFields.includes('contacts:city') && (
+                <div className="space-y-4">
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Location details</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">City</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                          <MapPin className="h-3.5 w-3.5" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Pune"
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">State</label>
+                      <input
+                        type="text"
+                        placeholder="Maharashtra"
+                        value={state}
+                        onChange={(e) => setState(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Section 4: Dynamic Custom Fields */}
+              {orgCustomFieldDefs.length > 0 && (
+                <div className="space-y-4">
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Sector Specific Information ({sector})</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {orgCustomFieldDefs.map((field) => {
+                      const IconComponent = field.icon_name ? getCustomFieldIcon(field.icon_name) : null;
+                      return (
+                        <div key={field.id} className="col-span-1">
+                          <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-wider mb-1.5">
+                            {field.field_label} {field.is_required && '*'}
+                          </label>
+                          <div className={IconComponent ? "relative" : ""}>
+                            {IconComponent && (
+                              <span className={`absolute inset-y-0 left-0 flex pl-3 text-slate-455 pointer-events-none ${field.field_type === 'textarea' ? 'items-start pt-2' : 'items-center'}`}>
+                                <IconComponent className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                            {field.field_type === 'dropdown' ? (
+                              <select
+                                value={customFieldsData[field.field_key] || ''}
+                                onChange={(e) => setCustomFieldsData(prev => ({ ...prev, [field.field_key]: e.target.value }))}
+                                required={field.is_required}
+                                className={`w-full ${IconComponent ? 'pl-9 pr-3' : 'px-3'} py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition`}
+                              >
+                                <option value="">{field.placeholder || 'Select option'}</option>
+                                {(field.options || []).map(opt => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : field.field_type === 'boolean' ? (
+                              <select
+                                value={customFieldsData[field.field_key] || ''}
+                                onChange={(e) => setCustomFieldsData(prev => ({ ...prev, [field.field_key]: e.target.value }))}
+                                required={field.is_required}
+                                className={`w-full ${IconComponent ? 'pl-9 pr-3' : 'px-3'} py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition`}
+                              >
+                                <option value="">Select option</option>
+                                <option value="Yes">Yes</option>
+                                <option value="No">No</option>
+                              </select>
+                            ) : field.field_type === 'textarea' ? (
+                              <textarea
+                                value={customFieldsData[field.field_key] || ''}
+                                onChange={(e) => setCustomFieldsData(prev => ({ ...prev, [field.field_key]: e.target.value }))}
+                                required={field.is_required}
+                                placeholder={field.placeholder || ''}
+                                className={`w-full ${IconComponent ? 'pl-9 pr-3 pt-2' : 'px-3 py-2'} rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition min-h-[60px]`}
+                              />
+                            ) : field.field_type === 'number' ? (
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={customFieldsData[field.field_key] || ''}
+                                onChange={(e) => setCustomFieldsData(prev => ({ ...prev, [field.field_key]: e.target.value.replace(/\D/g, '') }))}
+                                required={field.is_required}
+                                placeholder={field.placeholder || ''}
+                                className={`w-full ${IconComponent ? 'pl-9 pr-3' : 'px-3'} py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition`}
+                              />
+                            ) : (
+                              <input
+                                type={field.field_type === 'date' ? 'date' : 'text'}
+                                value={customFieldsData[field.field_key] || ''}
+                                onChange={(e) => setCustomFieldsData(prev => ({ ...prev, [field.field_key]: e.target.value }))}
+                                required={field.is_required}
+                                placeholder={field.placeholder || ''}
+                                className={`w-full ${IconComponent ? 'pl-9 pr-3' : 'px-3'} py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition`}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Section 5: Assignment & Status */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">CRM Context & Classification</span>
+                <div className={`grid grid-cols-1 md:grid-cols-${(currentUser?.role === 'owner' || currentUser?.role === 'sales_admin') ? '2' : '1'} gap-4`}>
+                  {(currentUser?.role === 'owner' || currentUser?.role === 'sales_admin') && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Allocate Account Manager</label>
+                      <select
+                        value={assignedTo}
+                        onChange={(e) => setAssignedTo(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 transition"
+                      >
+                        <option value="">👤 Unassigned (Owner Owned)</option>
+                        {salesReps.map((rep) => (
+                          <option key={rep._id} value={rep._id}>{rep.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Account Status</label>
                     <select
-                      value={assignedTo}
-                      onChange={(e) => setAssignedTo(e.target.value)}
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 transition"
                     >
-                      <option value="">Unassigned (Owner Owned)</option>
-                      {salesReps.map((rep) => (
-                        <option key={rep._id} value={rep._id}>{rep.name}</option>
-                      ))}
+                      <option value="Active">🟢 Active</option>
+                      <option value="Inactive">🔴 Inactive</option>
                     </select>
                   </div>
-                )}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Account Status</label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 transition"
-                  >
-                    <option value="Active">🟢 Active</option>
-                    <option value="Inactive">🔴 Inactive</option>
-                  </select>
                 </div>
               </div>
 
@@ -868,146 +1123,290 @@ export default function ContactsPage() {
       {/* --- EDIT / UPDATE PROFILE MODAL --- */}
       {editModalOpen && selectedContact && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4 py-6 overflow-y-auto animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-2xl flex flex-col shadow-2xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="px-6 py-5 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
               <h2 className="text-base font-bold text-slate-800 flex items-center gap-1.5">
                 <Edit2 className="h-5 w-5 text-emerald-500" />
                 Update Customer Contact Profile
               </h2>
-              <button onClick={() => setEditModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-850">
+              <button onClick={() => setEditModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-855 focus:outline-none">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleUpdateContact} className="p-6 space-y-4.5 bg-white">
+            <form onSubmit={handleUpdateContact} className="flex-1 overflow-y-auto p-6 space-y-6 bg-white scrollbar-thin">
               {formError && (
-                <div className="p-3 rounded-lg bg-rose-50 border border-rose-100 text-xs text-rose-600 font-bold">
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-100 text-xs text-rose-600 font-bold animate-in fade-in">
                   {formError}
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">First Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Last Name</label>
-                  <input
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Company Name</label>
-                  <input
-                    type="text"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Designation</label>
-                  <input
-                    type="text"
-                    value={designation}
-                    onChange={(e) => setDesignation(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Email Address</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number</label>
-                  <input
-                    type="text"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">WhatsApp Mobile</label>
-                  <input
-                    type="text"
-                    value={whatsapp}
-                    onChange={(e) => setWhatsapp(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">City</label>
-                  <input
-                    type="text"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">State</label>
-                  <input
-                    type="text"
-                    value={state}
-                    onChange={(e) => setState(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {(currentUser?.role === 'owner' || currentUser?.role === 'sales_admin') && (
+              {/* Section 1: Identity & Primary Info */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Primary Details</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Allocate Account Manager</label>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">First Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="E.g. Rajesh"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Last Name</label>
+                    <input
+                      type="text"
+                      placeholder="E.g. Kumar"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
+                    />
+                  </div>
+                </div>
+
+                <div className={`grid grid-cols-1 md:grid-cols-${hiddenStandardFields.includes('contacts:designation') ? '1' : '2'} gap-4`}>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Organization Name</label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                        <Building className="h-4 w-4" />
+                      </span>
+                      <input
+                        type="text"
+                        list="organizations-datalist"
+                        placeholder="E.g. Innonsh Tech"
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
+                      />
+                    </div>
+                    <datalist id="organizations-datalist">
+                      {clientOrganizations.map(o => (
+                        <option key={o._id || o.id} value={o.name} />
+                      ))}
+                    </datalist>
+                  </div>
+                  {!hiddenStandardFields.includes('contacts:designation') && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Designation</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                          <Briefcase className="h-3.5 w-3.5" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="E.g. CTO / Tech Lead"
+                          value={designation}
+                          onChange={(e) => setDesignation(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 2: Contact Details */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Communication channels</span>
+                <div className={`grid grid-cols-1 md:grid-cols-${hiddenStandardFields.includes('contacts:whatsapp') ? '2' : '3'} gap-4`}>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Email Address</label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                        <Mail className="h-3.5 w-3.5" />
+                      </span>
+                      <input
+                        type="email"
+                        placeholder="client@company.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 transition"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Phone Number</label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                        <Phone className="h-3.5 w-3.5" />
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="+91 99999 88888"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-450 transition"
+                      />
+                    </div>
+                  </div>
+                  {!hiddenStandardFields.includes('contacts:whatsapp') && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">WhatsApp Mobile</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-emerald-500 pointer-events-none">
+                          <MessageCircle className="h-3.5 w-3.5" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="99999"
+                          value={whatsapp}
+                          onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, ''))}
+                          className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 transition"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 3: Location Details */}
+              {!hiddenStandardFields.includes('contacts:city') && (
+                <div className="space-y-4">
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Location details</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">City</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
+                          <MapPin className="h-3.5 w-3.5" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Pune"
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">State</label>
+                      <input
+                        type="text"
+                        placeholder="Maharashtra"
+                        value={state}
+                        onChange={(e) => setState(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Section 4: Dynamic Custom Fields */}
+              {orgCustomFieldDefs.length > 0 && (
+                <div className="space-y-4">
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Sector Specific Information ({sector})</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {orgCustomFieldDefs.map((field) => {
+                      const IconComponent = field.icon_name ? getCustomFieldIcon(field.icon_name) : null;
+                      return (
+                        <div key={field.id} className="col-span-1">
+                          <label className="block text-[10px] font-bold text-slate-550 uppercase tracking-wider mb-1.5">
+                            {field.field_label} {field.is_required && '*'}
+                          </label>
+                          <div className={IconComponent ? "relative" : ""}>
+                            {IconComponent && (
+                              <span className={`absolute inset-y-0 left-0 flex pl-3 text-slate-455 pointer-events-none ${field.field_type === 'textarea' ? 'items-start pt-2' : 'items-center'}`}>
+                                <IconComponent className="h-3.5 w-3.5" />
+                              </span>
+                            )}
+                            {field.field_type === 'dropdown' ? (
+                              <select
+                                value={customFieldsData[field.field_key] || ''}
+                                onChange={(e) => setCustomFieldsData(prev => ({ ...prev, [field.field_key]: e.target.value }))}
+                                required={field.is_required}
+                                className={`w-full ${IconComponent ? 'pl-9 pr-3' : 'px-3'} py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition`}
+                              >
+                                <option value="">{field.placeholder || 'Select option'}</option>
+                                {(field.options || []).map(opt => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : field.field_type === 'boolean' ? (
+                              <select
+                                value={customFieldsData[field.field_key] || ''}
+                                onChange={(e) => setCustomFieldsData(prev => ({ ...prev, [field.field_key]: e.target.value }))}
+                                required={field.is_required}
+                                className={`w-full ${IconComponent ? 'pl-9 pr-3' : 'px-3'} py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition`}
+                              >
+                                <option value="">Select option</option>
+                                <option value="Yes">Yes</option>
+                                <option value="No">No</option>
+                              </select>
+                            ) : field.field_type === 'textarea' ? (
+                              <textarea
+                                value={customFieldsData[field.field_key] || ''}
+                                onChange={(e) => setCustomFieldsData(prev => ({ ...prev, [field.field_key]: e.target.value }))}
+                                required={field.is_required}
+                                placeholder={field.placeholder || ''}
+                                className={`w-full ${IconComponent ? 'pl-9 pr-3 pt-2' : 'px-3 py-2'} rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition min-h-[60px]`}
+                              />
+                            ) : field.field_type === 'number' ? (
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={customFieldsData[field.field_key] || ''}
+                                onChange={(e) => setCustomFieldsData(prev => ({ ...prev, [field.field_key]: e.target.value.replace(/\D/g, '') }))}
+                                required={field.is_required}
+                                placeholder={field.placeholder || ''}
+                                className={`w-full ${IconComponent ? 'pl-9 pr-3' : 'px-3'} py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition`}
+                              />
+                            ) : (
+                              <input
+                                type={field.field_type === 'date' ? 'date' : 'text'}
+                                value={customFieldsData[field.field_key] || ''}
+                                onChange={(e) => setCustomFieldsData(prev => ({ ...prev, [field.field_key]: e.target.value }))}
+                                required={field.is_required}
+                                placeholder={field.placeholder || ''}
+                                className={`w-full ${IconComponent ? 'pl-9 pr-3' : 'px-3'} py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition`}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Section 5: Assignment & Status */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">CRM Context & Classification</span>
+                <div className={`grid grid-cols-1 md:grid-cols-${(currentUser?.role === 'owner' || currentUser?.role === 'sales_admin') ? '2' : '1'} gap-4`}>
+                  {(currentUser?.role === 'owner' || currentUser?.role === 'sales_admin') && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Allocate Account Manager</label>
+                      <select
+                        value={assignedTo}
+                        onChange={(e) => setAssignedTo(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 transition"
+                      >
+                        <option value="">👤 Unassigned (Owner Owned)</option>
+                        {salesReps.map((rep) => (
+                          <option key={rep._id} value={rep._id}>{rep.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Account Status</label>
                     <select
-                      value={assignedTo}
-                      onChange={(e) => setAssignedTo(e.target.value)}
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 transition"
                     >
-                      <option value="">Unassigned (Owner Owned)</option>
-                      {salesReps.map((rep) => (
-                        <option key={rep._id} value={rep._id}>{rep.name}</option>
-                      ))}
+                      <option value="Active">🟢 Active</option>
+                      <option value="Inactive">🔴 Inactive</option>
                     </select>
                   </div>
-                )}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Account Status</label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 transition"
-                  >
-                    <option value="Active">🟢 Active</option>
-                    <option value="Inactive">🔴 Inactive</option>
-                  </select>
                 </div>
               </div>
 
@@ -1023,7 +1422,7 @@ export default function ContactsPage() {
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold rounded-lg shadow-md transition cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-450 text-white text-xs font-bold rounded-lg shadow-md transition cursor-pointer"
                 >
                   {actionLoading ? <Loader2 className="h-4 w-4 animate-spin text-white" /> : 'Save Update Details'}
                 </button>
