@@ -589,8 +589,8 @@ export default function DashboardLayout({ children }) {
             <rect x="76" width="113" height="25" rx="4" fill="#10b981"/>
             <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="#10b981"/>
           </svg>
-          <span className="text-lg font-bold text-slate-800 tracking-tight truncate" title={user?.companyName ? `${user.companyName} CRM` : "Innonsh LeadGen"}>
-            {user?.companyName ? user.companyName : "Innonsh LeadGen"}
+          <span className="text-lg font-bold text-slate-800 tracking-tight truncate" title="Innonsh LeadGen">
+            Innonsh LeadGen
           </span>
         </div>
 
@@ -635,7 +635,7 @@ export default function DashboardLayout({ children }) {
                   <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="#10b981"/>
                 </svg>
                 <span className="text-base font-bold text-slate-800 truncate tracking-tight">
-                  {user?.companyName ? user.companyName : "Innonsh LeadGen"}
+                  Innonsh LeadGen
                 </span>
               </div>
               <button 
@@ -691,11 +691,7 @@ export default function DashboardLayout({ children }) {
               <span className="text-xs md:text-sm font-bold text-slate-700">
                 Welcome back, <strong className="text-slate-900">{user?.name}</strong>
               </span>
-              {user?.companyName && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-250 font-mono w-max select-none animate-in fade-in duration-300">
-                  🏢 {user.companyName}
-                </span>
-              )}
+              {/* Company pill removed as requested */}
             </div>
           </div>
 
