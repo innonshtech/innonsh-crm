@@ -1,7 +1,6 @@
 import { getUserFromRequest } from '@/lib/auth';
 import { supabase } from '@/lib/supabaseClient';
 import { NextResponse } from 'next/server';
-import { sanitizePayload } from '@/lib/sanitize';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +12,6 @@ export async function GET(req) {
   try {
     const user = getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-    if (!user.orgId) return NextResponse.json({ success: true, fields: [] });
 
     const { searchParams } = new URL(req.url);
     const moduleName = searchParams.get('module') || 'leads';
@@ -47,8 +45,7 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Only organization owners can manage custom fields.' }, { status: 403 });
     }
 
-    let body = await req.json();
-    body = sanitizePayload(body);
+    const body = await req.json();
     const { module: moduleName = 'leads', field_key, field_label, field_type, options = [], is_required = false, placeholder = '', icon_name = null } = body;
 
     if (!field_key || !field_label || !field_type) {
@@ -116,9 +113,7 @@ export async function PUT(req) {
       return NextResponse.json({ error: 'Only organization owners can manage custom fields.' }, { status: 403 });
     }
 
-    let body = await req.json();
-    body = sanitizePayload(body);
-    const { id, field_label, options, is_required, placeholder, icon_name } = body;
+    const { id, field_label, options, is_required, placeholder, icon_name } = await req.json();
     if (!id) return NextResponse.json({ error: 'Field id is required.' }, { status: 400 });
 
     const updatePayload = {};

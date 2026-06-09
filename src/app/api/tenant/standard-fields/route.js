@@ -12,7 +12,6 @@ export async function GET(req) {
   try {
     const user = getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-    if (!user.orgId) return NextResponse.json({ success: true, hiddenFields: [] });
 
     const { data: org, error } = await supabase
       .from('organizations')

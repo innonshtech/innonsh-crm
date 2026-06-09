@@ -6,13 +6,9 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const owner1Email = 'nikheel@innonsh.com';
-    const owner1Password = 'nikheel@123';
-    const hashedOwner1Password = await hashPassword(owner1Password);
-
-    const owner2Email = 'aman@innonsh.com';
-    const owner2Password = 'aman@123';
-    const hashedOwner2Password = await hashPassword(owner2Password);
+    const defaultOwnerEmail = 'owner@mycompany.com';
+    const defaultOwnerPassword = 'ownerpassword123';
+    const hashedOwnerPassword = await hashPassword(defaultOwnerPassword);
 
     const defaultManagerEmail = 'manager@mycompany.com';
     const defaultManagerPassword = 'managerpassword123';
@@ -24,17 +20,9 @@ export async function GET() {
 
     const usersToCreate = [
       {
-        name: 'Nikheel Joshi',
-        email: owner1Email,
-        password: hashedOwner1Password,
-        role: 'owner',
-        approval_status: 'Approved',
-        is_active: true
-      },
-      {
-        name: 'Aman Malviya',
-        email: owner2Email,
-        password: hashedOwner2Password,
+        name: 'Innonsh Owner',
+        email: defaultOwnerEmail,
+        password: hashedOwnerPassword,
         role: 'owner',
         approval_status: 'Approved',
         is_active: true
@@ -61,6 +49,33 @@ export async function GET() {
 
     // 1. DYNAMIC DATABASE DETECTOR
     if (supabase) {
+      // Find or create 'Innonsh' organization to assign to seeded users
+      let innonshOrgId = null;
+      const { data: existingOrg, error: orgFindError } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('name', 'Innonsh')
+        .maybeSingle();
+
+      if (existingOrg) {
+        innonshOrgId = existingOrg.id;
+      } else {
+        const { data: newOrg, error: orgCreateError } = await supabase
+          .from('organizations')
+          .insert([
+            {
+              name: 'Innonsh',
+              approval_status: 'Approved',
+              enabled_modules: ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'analytics', 'users', 'roles', 'teams']
+            }
+          ])
+          .select('id')
+          .single();
+        if (newOrg) {
+          innonshOrgId = newOrg.id;
+        }
+      }
+
       // Clear or check existence
       const { data: existingUsers, error: checkError } = await supabase
         .from('users')
@@ -72,7 +87,14 @@ export async function GET() {
 
       // Filter users that do not exist yet
       const existingEmails = (existingUsers || []).map(u => u.email);
-      const newUsers = usersToCreate.filter(u => !existingEmails.includes(u.email));
+      
+      // Map usersToCreate to include org_id
+      const usersWithOrg = usersToCreate.map(u => ({
+        ...u,
+        org_id: innonshOrgId
+      }));
+      
+      const newUsers = usersWithOrg.filter(u => !existingEmails.includes(u.email));
 
       if (newUsers.length > 0) {
         const { data: insertedUsers, error: insertError } = await supabase
@@ -126,17 +148,12 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: 'System successfully initialized! All 4 roles created in your active database.',
+      message: 'System successfully initialized! All 3 roles created in your active database.',
       default_credentials: [
         {
-          role: 'Owner (Nikheel Joshi)',
-          email: owner1Email,
-          password: owner1Password
-        },
-        {
-          role: 'Owner (Aman Malviya)',
-          email: owner2Email,
-          password: owner2Password
+          role: 'Owner (Super Admin)',
+          email: defaultOwnerEmail,
+          password: defaultOwnerPassword
         },
         {
           role: 'Sales Manager (Sales Admin)',

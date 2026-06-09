@@ -33,9 +33,9 @@ export async function POST(req, { params }) {
     }
 
     if (supabase) {
-      const { data: lead, error: fetchError } = await supabase
+      const { data: leadRaw, error: fetchError } = await supabase
         .from('leads')
-        .select('id, assigned_to, created_by, created_by_role, is_public')
+        .select('id, assigned_to, created_by, creator:users!created_by(id, role), visibility_scope')
         .eq('id', id)
         .maybeSingle();
 
@@ -44,9 +44,18 @@ export async function POST(req, { params }) {
         throw fetchError;
       }
 
-      if (!lead) {
+      if (!leadRaw) {
         return NextResponse.json({ error: 'Lead not found.' }, { status: 404 });
       }
+
+      // Map Supabase columns to auth checker conventions
+      const lead = {
+        ...leadRaw,
+        is_public: leadRaw.visibility_scope === 'GLOBAL',
+        isPublic: leadRaw.visibility_scope === 'GLOBAL',
+        created_by_role: leadRaw.creator ? leadRaw.creator.role : 'sales_rep',
+        createdByRole: leadRaw.creator ? leadRaw.creator.role : 'sales_rep',
+      };
 
       // SECURITY CHECK: Role-based permission check
       if (!checkLeadEditPermission(lead, decodedUser, rolesPermissions)) {

@@ -17,7 +17,6 @@ export async function GET(req) {
   try {
     const user = getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-    if (!user.orgId) return NextResponse.json({ success: true, sector: '', allSectors: getAllSectorNames(), suggestions: [], addedKeys: [] });
 
     const { searchParams } = new URL(req.url);
     const module = searchParams.get('module') || 'leads';

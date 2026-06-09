@@ -4,7 +4,7 @@ import User from '@/lib/models/User';
 import Contact from '@/lib/models/Contact';
 import { supabase } from '@/lib/supabaseClient';
 import { mapTicketToFrontend } from '@/lib/dbMapper';
-import { getUserFromRequest } from '@/lib/auth';
+import { getUserFromRequest, checkModuleAccess } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 
 // GET /api/tickets - Fetch support tickets lists with filtering & search
@@ -16,7 +16,12 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401 });
     }
 
-
+    if (!checkModuleAccess(decodedUser, 'support')) {
+      return NextResponse.json(
+        { error: '🔒 Support Ticket module is not enabled for your organization.' },
+        { status: 403 }
+      );
+    }
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
@@ -139,7 +144,12 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-
+    if (!checkModuleAccess(decodedUser, 'support')) {
+      return NextResponse.json(
+        { error: '🔒 Support Ticket module is not enabled for your organization.' },
+        { status: 403 }
+      );
+    }
 
     const body = await req.json();
     const {

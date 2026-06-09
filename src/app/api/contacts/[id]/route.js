@@ -166,7 +166,7 @@ export async function PUT(req, { params }) {
         updateQuery = updateQuery.eq('org_id', decodedUser.orgId);
       }
       const { data: updatedContact, error: updateError } = await updateQuery
-        .select('*, users(id, name, email, role), client_organizations(*)')
+        .select('*, users!contacts_assigned_to_fkey(id, name, email, role), client_organizations(*)')
         .single();
 
       if (updateError) {

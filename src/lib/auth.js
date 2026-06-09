@@ -35,17 +35,6 @@ export function signToken(payload) {
 }
 
 /**
- * Sign a new JWT refresh token
- * @param {object} payload - user data
- * @returns {string} signed JWT refresh token
- */
-export function signRefreshToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: '7d', // Refresh token valid for 7 days
-  });
-}
-
-/**
  * Verify a JWT session token
  * @param {string} token 
  * @returns {object|null} decoded payload or null if invalid
@@ -87,11 +76,12 @@ export function getUserFromRequest(req) {
 
     if (decoded) {
       // STRICT MULTI-TENANT ISOLATION GATING:
-      // Temporarily disabled for backwards compatibility with single-tenant legacy users.
-      // if (!decoded.isSuperAdmin && !decoded.orgId) {
-      //   console.warn(`⚠️ Security Alert: Rejected legacy token without orgId for user ${decoded.email}`);
-      //   return null;
-      // }
+      // Non-superadmins must have a valid orgId inside their session token to access any API.
+      // If it is a legacy single-tenant session token without orgId, invalidate it immediately.
+      if (!decoded.isSuperAdmin && !decoded.orgId) {
+        console.warn(`⚠️ Security Alert: Rejected legacy token without orgId for user ${decoded.email}`);
+        return null;
+      }
       return decoded;
     }
 
@@ -132,7 +122,7 @@ export function checkLeadVisibility(lead, user, rolesPermissions = null) {
 
   // Extract creator and assignee details (handling both Mongo and Supabase shape)
   const leadCreatedBy = lead.createdBy || lead.created_by;
-  const leadCreatedByRole = lead.createdByRole || lead.created_by_role;
+  const leadCreatedByRole = lead.createdByRole || lead.created_by_role || (lead.creator && lead.creator.role) || (lead.createdBy && lead.createdBy.role) || 'sales_rep';
   const leadAssignedTo = lead.assignedTo || lead.assigned_to;
 
   const creatorId = (leadCreatedBy && typeof leadCreatedBy === 'object') ? (leadCreatedBy.id || leadCreatedBy._id) : leadCreatedBy;
@@ -142,53 +132,57 @@ export function checkLeadVisibility(lead, user, rolesPermissions = null) {
   if (creatorId && creatorId.toString() === userId.toString()) return true;
   if (assigneeId && assigneeId.toString() === userId.toString()) return true;
 
-  // Check dynamic permissions if provided
+  // Check dynamic permissions or use defaults
+  const defaultReadScopes = {
+    owner: 'Global',
+    sales_admin: 'Global',
+    sales_rep: 'Assigned Only'
+  };
+
+  let readScope = defaultReadScopes[userRole] || 'Assigned Only';
+
   if (rolesPermissions && rolesPermissions[userRole]) {
     const rolePerms = rolesPermissions[userRole];
-    // Find permissions array for Leads Directory module
     const leadsPerm = Array.isArray(rolePerms) 
       ? rolePerms.find(p => p.module === 'Leads Directory')
       : rolePerms['Leads Directory'];
 
     if (leadsPerm) {
-      const readScope = leadsPerm.read; // e.g. 'Global', 'Assigned Only', 'Personal Only', 'Team List only', 'No'
-      if (readScope === 'Global') return true;
-      if (readScope === 'No') return false;
-      if (readScope === 'Team List only') {
-        // Can see if they are the creator or assignee
-        if (creatorId && creatorId.toString() === userId.toString()) return true;
-        if (assigneeId && assigneeId.toString() === userId.toString()) return true;
-        // Or if it was created by a sales rep or sales manager
-        if (leadCreatedByRole === 'sales_rep' || leadCreatedByRole === 'sales_admin') return true;
-        return false;
-      }
-      // If 'Assigned Only' or 'Personal Only', they are checked via Rule 1 (creatorId/assigneeId === userId)
-      if (readScope === 'Assigned Only') return false;
+      readScope = leadsPerm.read;
     }
   }
+
+  if (readScope === 'Global') return true;
+  if (readScope === 'No') return false;
+  if (readScope === 'Team List only') {
+    if (creatorId && creatorId.toString() === userId.toString()) return true;
+    if (assigneeId && assigneeId.toString() === userId.toString()) return true;
+    if (leadCreatedByRole === 'sales_rep' || leadCreatedByRole === 'sales_admin') return true;
+    return false;
+  }
+  if (readScope === 'Assigned Only') return false;
 
   // Rule 2: Legacy leads (created_by is null)
   if (!creatorId) {
     if (userRole !== 'sales_rep') {
       return true; // Owners and managers see all legacy leads
     }
-    // Sales reps see legacy leads if assigned to them or unassigned
     return !assigneeId || assigneeId.toString() === userId.toString();
   }
 
-  // Rule 3: If created by a sales rep, owners and managers can see it, but other sales reps cannot (unless assigned)
+  // Rule 3: If created by a sales rep, owners and managers can see it
   if (leadCreatedByRole === 'sales_rep') {
     return userRole === 'owner' || userRole === 'sales_admin';
   }
 
-  // Rule 4: If created by a manager (sales_admin), owners and managers can see it, but sales reps cannot
+  // Rule 4: If created by a manager (sales_admin), owners and managers can see it
   if (leadCreatedByRole === 'sales_admin') {
     return userRole === 'owner' || userRole === 'sales_admin';
   }
 
   // Rule 5: If created by an owner, other owners, managers and sales reps cannot see it (unless assigned)
   if (leadCreatedByRole === 'owner') {
-    return false; // already checked creatorId === userId
+    return false;
   }
 
   return false;
@@ -248,4 +242,3 @@ export function checkLeadEditPermission(lead, user, rolesPermissions = null) {
 }
 
 
-// Force turbopack invalidation

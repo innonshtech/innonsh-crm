@@ -16,15 +16,6 @@ export async function POST() {
       path: '/',
     });
 
-    // Clear refresh token
-    response.cookies.set({
-      name: 'refresh_token',
-      value: '',
-      httpOnly: true,
-      expires: new Date(0),
-      path: '/api/auth/refresh',
-    });
-
     return response;
   } catch (error) {
     console.error('Logout error:', error);

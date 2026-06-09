@@ -223,8 +223,8 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Unauthorized. Please login.' }, { status: 401 });
     }
 
-    if (!supabase || !decodedUser.orgId) {
-      return NextResponse.json({ success: true, count: 0, requests: [] });
+    if (!supabase) {
+      return NextResponse.json({ error: 'Supabase client is not configured.' }, { status: 500 });
     }
 
     const { data, error } = await supabase

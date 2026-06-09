@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { mapContactToFrontend } from '@/lib/dbMapper';
 import { getUserFromRequest, checkModuleAccess } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import Lead from '@/lib/models/Lead';
 
 // GET /api/contacts - Retrieve customer contacts lists with strict role permissions
 export async function GET(req) {
@@ -23,6 +24,60 @@ export async function GET(req) {
       );
     }
 
+    // SELF-HEALING SYNC: Ensure all Qualified leads have a matching customer contact profile
+    if (supabase) {
+      try {
+        let leadsQuery = supabase
+          .from('leads')
+          .select('id, first_name, last_name, company, designation, email, phone, whatsapp, city, state, country, assigned_to, org_id, custom_data, status')
+          .eq('status', 'Qualified');
+        
+        if (decodedUser.orgId) {
+          leadsQuery = leadsQuery.eq('org_id', decodedUser.orgId);
+        }
+        
+        const { data: qualifiedLeads } = await leadsQuery;
+        
+        if (qualifiedLeads && qualifiedLeads.length > 0) {
+          const leadIds = qualifiedLeads.map(l => l.id);
+          const { data: existingContacts } = await supabase
+            .from('contacts')
+            .select('lead_id')
+            .in('lead_id', leadIds);
+            
+          const existingLeadIds = new Set((existingContacts || []).map(c => c.lead_id));
+          const { ensureContactForLead } = await import('@/lib/contactAutomation');
+          
+          for (const lead of qualifiedLeads) {
+            if (!existingLeadIds.has(lead.id)) {
+              await ensureContactForLead(lead, decodedUser);
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.error('Self-healing contacts sync failed (Supabase):', syncErr);
+      }
+    } else {
+      try {
+        await connectToDatabase();
+        const qualifiedLeads = await Lead.find({ status: 'Qualified' });
+        if (qualifiedLeads && qualifiedLeads.length > 0) {
+          const leadIds = qualifiedLeads.map(l => l._id);
+          const existingContacts = await Contact.find({ leadId: { $in: leadIds } }, 'leadId');
+          const existingLeadIds = new Set(existingContacts.map(c => c.leadId?.toString()));
+          const { ensureContactForLead } = await import('@/lib/contactAutomation');
+          
+          for (const lead of qualifiedLeads) {
+            if (!existingLeadIds.has(lead._id.toString())) {
+              await ensureContactForLead(lead, decodedUser);
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.error('Self-healing contacts sync failed (MongoDB):', syncErr);
+      }
+    }
+
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
     const assignedToFilter = searchParams.get('assignedTo') || '';
@@ -34,7 +89,7 @@ export async function GET(req) {
     if (supabase) {
       let queryBuilder = supabase
         .from('contacts')
-        .select('*, users(id, name, email, role), client_organizations(*)');
+        .select('*, users!contacts_assigned_to_fkey(id, name, email, role), client_organizations(*)');
 
       // STRICT MULTI-TENANT ISOLATION
       if (decodedUser.orgId) {
@@ -264,7 +319,7 @@ export async function POST(req) {
       // Fresh fetch to fetch user join details and client organization
       const { data: refreshedContact } = await supabase
         .from('contacts')
-        .select('*, users(id, name, email, role), client_organizations(*)')
+        .select('*, users!contacts_assigned_to_fkey(id, name, email, role), client_organizations(*)')
         .eq('id', newContact.id)
         .single();
 
@@ -353,5 +408,3 @@ export async function POST(req) {
     );
   }
 }
-
-// Force turbopack invalidation for contacts API
