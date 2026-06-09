@@ -79,7 +79,7 @@ export function mapLeadToFrontend(lead) {
       email: lead.createdBy.email,
       role: lead.createdBy.role
     } : null),
-    isPublic: lead.is_public || lead.isPublic || false,
+    isPublic: lead.is_public || lead.isPublic || (lead.visibility_scope === 'GLOBAL'),
     score: lead.score || 0,
     customFields: lead.custom_fields || [],
     customData: lead.custom_data || {},

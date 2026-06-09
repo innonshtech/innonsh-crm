@@ -2,30 +2,19 @@ import connectToDatabase from '@/lib/db';
 import User from '@/lib/models/User';
 import { supabase } from '@/lib/supabaseClient';
 import { mapUserToFrontend } from '@/lib/dbMapper';
-import { auditLog } from '@/lib/logger';
-import { comparePassword, signToken, signRefreshToken } from '@/lib/auth';
+import { comparePassword, signToken } from '@/lib/auth';
 import { NextResponse } from 'next/server';
-
-import { z } from 'zod';
-
-const loginSchema = z.object({
-  email: z.string().email('Invalid email address syntax.'),
-  password: z.string().min(1, 'Password is required')
-});
 
 export async function POST(req) {
   try {
-    const body = await req.json();
-    const parsed = loginSchema.safeParse(body);
-    
-    if (!parsed.success) {
+    const { email, password } = await req.json();
+
+    if (!email || !password) {
       return NextResponse.json(
-        { error: parsed.error.errors[0].message },
+        { error: 'Email and password are required' },
         { status: 400 }
       );
     }
-    
-    const { email, password } = parsed.data;
 
     let user = null;
     let userId = null;
@@ -35,8 +24,11 @@ export async function POST(req) {
     let userApprovalStatus = 'Approved';
     let userIsActive = true;
     let userHashedPassword = '';
-    let userOrgId = null;
     let userIsSuperAdmin = false;
+    let userOrgApprovalStatus = 'Approved';
+    let userCompanyName = '';
+    let userOrgId = null;
+    let userEnabledModules = ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'analytics', 'users', 'roles', 'teams', 'real-estate'];
 
     // 1. DYNAMIC DATABASE DETECTOR
     if (supabase) {
@@ -58,8 +50,24 @@ export async function POST(req) {
         userApprovalStatus = data.approval_status;
         userIsActive = data.is_active;
         userHashedPassword = data.password;
-        userOrgId = data.org_id || null;
-        userIsSuperAdmin = data.is_super_admin || data.role === 'superadmin' || false;
+        userIsSuperAdmin = data.is_super_admin || data.role === 'superadmin';
+        userOrgId = data.org_id;
+
+        // Check organization approval status if not a super admin
+        if (data.org_id && !data.is_super_admin) {
+          const { data: orgData, error: orgError } = await supabase
+            .from('organizations')
+            .select('name, approval_status, enabled_modules')
+            .eq('id', data.org_id)
+            .maybeSingle();
+          if (orgError) {
+            console.error('Supabase organization fetch error:', orgError);
+          } else if (orgData) {
+            userOrgApprovalStatus = orgData.approval_status;
+            userCompanyName = orgData.name;
+            userEnabledModules = orgData.enabled_modules || [];
+          }
+        }
       }
     } else {
       // Graceful fallback to MongoDB
@@ -74,8 +82,8 @@ export async function POST(req) {
         userApprovalStatus = mongoUser.approvalStatus;
         userIsActive = mongoUser.isActive;
         userHashedPassword = mongoUser.password;
+        userIsSuperAdmin = mongoUser.isSuperAdmin || mongoUser.role === 'superadmin';
         userOrgId = mongoUser.orgId || mongoUser.org_id || null;
-        userIsSuperAdmin = mongoUser.isSuperAdmin || mongoUser.role === 'superadmin' || false;
       }
     }
 
@@ -83,6 +91,21 @@ export async function POST(req) {
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }
+      );
+    }
+
+    // Check organization approval status
+    if (userOrgApprovalStatus === 'Pending') {
+      return NextResponse.json(
+        { error: '🔒 Your company registration is currently pending Super Admin approval. Please check back later.' },
+        { status: 403 }
+      );
+    }
+
+    if (userOrgApprovalStatus === 'Suspended') {
+      return NextResponse.json(
+        { error: '❌ Your company access has been suspended. Please contact support.' },
+        { status: 403 }
       );
     }
 
@@ -111,49 +134,21 @@ export async function POST(req) {
       );
     }
 
+    // 3. Create session token (JWT)
+    if (userIsSuperAdmin && !userEnabledModules.includes('real-estate')) {
+      userEnabledModules.push('real-estate');
+    }
     const sessionToken = signToken({
       id: userId,
       name: userName,
       email: userEmail,
       role: userRole,
-      orgId: userOrgId,
       isSuperAdmin: userIsSuperAdmin,
+      orgId: userOrgId,
+      enabledModules: userEnabledModules,
     });
 
-    const refreshToken = signRefreshToken({ id: userId });
-
-    const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
-    const userAgent = req.headers.get('user-agent') || 'Unknown Device';
-
-    // 3.5 Log the active session
-    if (supabase) {
-      // In Supabase, if we create a session table, we can insert it here.
-      // For now we will rely on Supabase's built in tracking or assume a sessions table exists.
-      try {
-        await supabase.from('active_sessions').insert([{
-          user_id: userId,
-          refresh_token: refreshToken,
-          ip_address: ipAddress,
-          user_agent: userAgent
-        }]);
-      } catch (e) {
-        console.warn('Could not insert session to Supabase', e);
-      }
-    } else {
-      await connectToDatabase();
-      await User.findByIdAndUpdate(userId, {
-        $push: {
-          activeSessions: {
-            token: refreshToken,
-            ipAddress,
-            userAgent,
-            lastActive: new Date()
-          }
-        }
-      });
-    }
-
-    // 4. Create response and set cookies
+    // 4. Create response and set cookie
     const response = NextResponse.json({
       success: true,
       message: 'Login successful',
@@ -162,38 +157,26 @@ export async function POST(req) {
         name: userName,
         email: userEmail,
         role: userRole,
-        orgId: userOrgId,
+        companyName: userCompanyName,
         isSuperAdmin: userIsSuperAdmin,
+        orgId: userOrgId,
+        enabledModules: userEnabledModules,
       },
     });
 
-    // Save access token as HTTP-Only cookie, valid for 15 minutes
+    // Save token as HTTP-Only cookie, valid for 7 days
     response.cookies.set({
       name: 'token',
       value: sessionToken,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 15 * 60, // 15 minutes in seconds
+      maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
       path: '/',
     });
 
-    // Save refresh token as HTTP-Only cookie, valid for 7 days
-    response.cookies.set({
-      name: 'refresh_token',
-      value: refreshToken,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
-      path: '/api/auth/refresh', // Restrict path for security
-    });
-
-    auditLog('USER_LOGIN_SUCCESS', userId, { email: userEmail, role: userRole, ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') });
-
     return response;
   } catch (error) {
-    auditLog('USER_LOGIN_ERROR', 'system', { error: error.message, email: req.body?.email });
     console.error('Login error:', error);
     return NextResponse.json(
       { error: 'Internal server error during login.' },

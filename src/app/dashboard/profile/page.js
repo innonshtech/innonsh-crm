@@ -13,10 +13,7 @@ import {
   EyeOff, 
   Loader2, 
   Info,
-  Calendar,
-  Smartphone,
-  Monitor,
-  Trash2
+  Calendar
 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -25,6 +22,7 @@ export default function ProfilePage() {
   
   // Forms states
   const [name, setName] = useState('');
+  const [gstin, setGstin] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -39,10 +37,6 @@ export default function ProfilePage() {
   const [glassmorphism, setGlassmorphism] = useState('High');
   const [alertSound, setAlertSound] = useState(true);
 
-  // Active Sessions state
-  const [sessions, setSessions] = useState([]);
-  const [loadingSessions, setLoadingSessions] = useState(true);
-
   const showToast = (text) => {
     setToastText(text);
     setTimeout(() => setToastText(''), 3000);
@@ -55,6 +49,7 @@ export default function ProfilePage() {
         const data = await res.json();
         setUser(data.user);
         setName(data.user.name);
+        setGstin(data.user.gstin || '');
       }
     } catch (err) {
       console.error('Fetch profile details failed:', err);
@@ -71,38 +66,7 @@ export default function ProfilePage() {
     const savedSound = localStorage.getItem('crm_alert_sound') !== 'false';
     setGlassmorphism(savedGlass);
     setAlertSound(savedSound);
-    
-    fetchSessions();
   }, []);
-
-  const fetchSessions = async () => {
-    try {
-      const res = await fetch('/api/auth/sessions');
-      if (res.ok) {
-        const data = await res.json();
-        setSessions(data.sessions || []);
-      }
-    } catch (err) {
-      console.error('Fetch sessions failed:', err);
-    } finally {
-      setLoadingSessions(false);
-    }
-  };
-
-  const handleRevokeSession = async (sessionId) => {
-    if (!confirm('Are you sure you want to revoke this session? The device will be logged out immediately.')) return;
-    try {
-      const res = await fetch(`/api/auth/sessions?id=${sessionId}`, { method: 'DELETE' });
-      if (res.ok) {
-        setSessions(sessions.filter(s => s.id !== sessionId));
-        showToast('✔️ Session revoked successfully.');
-      } else {
-        alert('Failed to revoke session.');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const handleUpdateName = async (e) => {
     e.preventDefault();
@@ -112,7 +76,7 @@ export default function ProfilePage() {
       const res = await fetch('/api/auth/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name, gstin })
       });
       const data = await res.json();
       if (res.ok) {
@@ -302,6 +266,19 @@ export default function ProfilePage() {
                 />
               </div>
 
+              {(user?.role === 'owner' || user?.role === 'sales_admin') && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest block font-mono">Company GSTIN</label>
+                  <input
+                    type="text"
+                    value={gstin}
+                    onChange={(e) => setGstin(e.target.value)}
+                    placeholder="E.g. 27AABCI4567K1Z4"
+                    className="w-full max-w-md px-3.5 py-2 text-xs font-bold bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200"
+                  />
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={updatingName}
@@ -446,55 +423,6 @@ export default function ProfilePage() {
               </div>
 
             </div>
-          </div>
-
-          {/* D. ACTIVE SESSIONS */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Smartphone className="h-4.5 w-4.5 text-blue-500" />
-                Active Devices & Sessions
-              </h3>
-              <button onClick={fetchSessions} className="text-[9px] font-bold text-slate-400 hover:text-blue-500 uppercase tracking-widest">
-                Refresh
-              </button>
-            </div>
-
-            {loadingSessions ? (
-              <div className="flex justify-center p-4">
-                <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {sessions.map(session => (
-                  <div key={session.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
-                        {session.user_agent?.toLowerCase().includes('mobile') ? <Smartphone className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-700 max-w-[200px] sm:max-w-xs truncate" title={session.user_agent}>
-                          {session.user_agent || 'Unknown Device'}
-                        </p>
-                        <p className="text-[10px] font-mono text-slate-400 mt-0.5">
-                          IP: {session.ip_address} • Active: {new Date(session.last_active_at).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleRevokeSession(session.id)}
-                      className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                      title="Revoke Session"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-                {sessions.length === 0 && (
-                  <p className="text-xs text-slate-500 italic text-center p-4">No active sessions found.</p>
-                )}
-              </div>
-            )}
           </div>
 
         </div>

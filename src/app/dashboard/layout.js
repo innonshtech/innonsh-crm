@@ -589,8 +589,8 @@ export default function DashboardLayout({ children }) {
             <rect x="76" width="113" height="25" rx="4" fill="#10b981"/>
             <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="#10b981"/>
           </svg>
-          <span className="text-lg font-bold text-slate-800 tracking-tight truncate" title="Innonsh LeadGen">
-            Innonsh LeadGen
+          <span className="text-base font-extrabold text-slate-800 truncate" title={user?.companyName ? `${user.companyName} CRM` : "Innonsh LeadGen"}>
+            {user?.companyName ? user.companyName : "Innonsh LeadGen"} <span className="text-[10px] text-emerald-500 font-mono ml-0.5">v1.0</span>
           </span>
         </div>
 
@@ -634,8 +634,8 @@ export default function DashboardLayout({ children }) {
                   <rect x="76" width="113" height="25" rx="4" fill="#10b981"/>
                   <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="#10b981"/>
                 </svg>
-                <span className="text-base font-bold text-slate-800 truncate tracking-tight">
-                  Innonsh LeadGen
+                <span className="text-sm font-bold text-slate-800 truncate">
+                  {user?.companyName ? user.companyName : "Innonsh LeadGen"}
                 </span>
               </div>
               <button 

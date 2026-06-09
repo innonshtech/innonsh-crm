@@ -11,9 +11,7 @@ import {
   ArrowRight, 
   CheckCircle2, 
   ShieldCheck,
-  UserPlus,
-  Eye,
-  EyeOff
+  UserPlus
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -25,14 +23,14 @@ export default function LoginPage() {
   // Login Form States
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   
   // Register Form States
+  const [companyName, setCompanyName] = useState('');
   const [name, setName] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [registerRole, setRegisterRole] = useState('sales_rep');
+  const [sector, setSector] = useState('SOFTWARE_SERVICES');
   
   // Forgot Password States
   const [forgotStep, setForgotStep] = useState(1); // 1 = enter email, 2 = enter otp and new password
@@ -53,6 +51,12 @@ export default function LoginPage() {
     setError('');
     setSuccess('');
     setRegisteredSuccess(false);
+    setCompanyName('');
+    setName('');
+    setRegisterEmail('');
+    setRegisterPassword('');
+    setConfirmPassword('');
+    setSector('SOFTWARE_SERVICES');
     setForgotStep(1);
     setForgotEmail('');
     setForgotOtp('');
@@ -174,6 +178,14 @@ export default function LoginPage() {
     setError('');
     setSuccess('');
 
+    if (!companyName.trim()) {
+      return setError('Company Name is required.');
+    }
+
+    if (!name.trim()) {
+      return setError('Full Name is required.');
+    }
+
     if (registerPassword !== confirmPassword) {
       return setError('Passwords do not match. Please verify.');
     }
@@ -187,7 +199,13 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email: registerEmail, password: registerPassword, role: registerRole }),
+        body: JSON.stringify({ 
+          companyName: companyName.trim(), 
+          name: name.trim(), 
+          email: registerEmail, 
+          password: registerPassword,
+          sector: sector
+        }),
       });
 
       const data = await res.json();
@@ -195,6 +213,7 @@ export default function LoginPage() {
       if (res.ok) {
         setRegisteredSuccess(true);
         // Clear fields
+        setCompanyName('');
         setName('');
         setRegisterEmail('');
         setRegisterPassword('');
@@ -219,9 +238,9 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/seed');
       const data = await res.json();
       if (res.ok) {
-        setSuccess('Database successfully seeded! Log in using nikheel@innonsh.com.');
-        setEmail('nikheel@innonsh.com');
-        setPassword('nikheel@123');
+        setSuccess('Database successfully seeded! Log in using owner@mycompany.com & ownerpassword123.');
+        setEmail('owner@mycompany.com');
+        setPassword('ownerpassword123');
         setActiveTab('login');
       } else {
         setError(data.error || 'Seed failed.');
@@ -238,10 +257,9 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-12 text-slate-800 font-sans relative overflow-hidden">
       {/* Soft visual background gradient glows */}
       <div className="absolute top-1/4 left-1/4 h-96 w-96 rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-1/4 right-1/4 h-96 w-96 rounded-full bg-indigo-500/5 blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-1/4 right-1/4 h-96 w-96 rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none"></div>
 
       <div className="w-full max-w-md z-10">
-        {/* CRM Brand Header */}
         <div className="flex flex-col items-center mb-6">
           <svg width="48" height="48" viewBox="0 0 189 190" fill="none" xmlns="http://www.w3.org/2000/svg" className="mb-3 animate-pulse drop-shadow-md">
             <path d="M45.0879 63.4871C45.1245 61.3863 46.7801 59.6719 48.8783 59.5621L111.882 56.2645C115.508 56.0747 117.491 60.4256 114.968 63.0377L50.8679 129.416C48.3455 132.028 43.9281 130.198 43.9912 126.567L45.0879 63.4871Z" fill="#10b981"/>
@@ -249,8 +267,8 @@ export default function LoginPage() {
             <rect x="76" width="113" height="25" rx="4" fill="#10b981"/>
             <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="#10b981"/>
           </svg>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-            Welcome to Innonsh LeadGen
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+            Welcome to Innonsh CRM
           </h1>
           <p className="text-xs text-slate-400 mt-1.5 font-semibold tracking-wider uppercase">CUSTOM SERVICES & PRODUCTS PORTAL</p>
         </div>
@@ -263,7 +281,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => handleTabChange('login')}
-              className={`flex-grow text-center py-2 text-xs font-black rounded-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-1 ${
+              className={`flex-grow text-center py-2 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-1 ${
                 activeTab === 'login'
                   ? 'bg-white text-slate-800 shadow-sm border border-slate-200/80 font-bold'
                   : 'text-slate-500 hover:text-slate-700 font-semibold'
@@ -275,14 +293,14 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => handleTabChange('register')}
-              className={`flex-grow text-center py-2 text-xs font-black rounded-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-1 ${
+              className={`flex-grow text-center py-2 text-xs font-semibold rounded-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-1 ${
                 activeTab === 'register'
                   ? 'bg-white text-slate-800 shadow-sm border border-slate-200/80 font-bold'
                   : 'text-slate-500 hover:text-slate-700 font-semibold'
               }`}
             >
-              <UserPlus className={`h-3.5 w-3.5 ${activeTab === 'register' ? 'text-indigo-500' : 'text-slate-400'}`} />
-              Request Access
+              <UserPlus className={`h-3.5 w-3.5 ${activeTab === 'register' ? 'text-emerald-500' : 'text-slate-400'}`} />
+              Register
             </button>
           </div>
 
@@ -307,7 +325,7 @@ export default function LoginPage() {
             // --- TAB 1: SIGN IN VIEW ---
             <form onSubmit={handleLoginSubmit} className="space-y-5">
               <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 font-mono">Email Address</label>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Email Address</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 pointer-events-none">
                     <Mail className="h-4 w-4" />
@@ -325,7 +343,7 @@ export default function LoginPage() {
 
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">Password</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Password</label>
                   <button
                     type="button"
                     onClick={() => {
@@ -334,7 +352,7 @@ export default function LoginPage() {
                       setError('');
                       setSuccess('');
                     }}
-                    className="text-[10px] font-black text-emerald-600 hover:text-emerald-500 transition cursor-pointer font-mono"
+                    className="text-[10px] font-bold text-emerald-650 hover:text-emerald-500 transition cursor-pointer hover:underline"
                   >
                     FORGOT PASSWORD?
                   </button>
@@ -344,20 +362,13 @@ export default function LoginPage() {
                     <Lock className="h-4 w-4" />
                   </span>
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type="password"
                     required
                     placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 hover:border-slate-350 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition text-xs text-slate-850 placeholder-slate-400"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 hover:border-slate-350 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition text-xs text-slate-850 placeholder-slate-400"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-emerald-500 transition cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
                 </div>
               </div>
 
@@ -365,7 +376,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex items-center justify-center gap-2 w-full mt-6 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black tracking-wide shadow-md shadow-emerald-500/10 hover:shadow-emerald-500/25 active:scale-[0.98] transition disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed cursor-pointer"
+                className="flex items-center justify-center gap-2 w-full mt-6 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold tracking-wide shadow-md shadow-emerald-500/10 hover:shadow-emerald-500/25 active:scale-[0.98] transition disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed cursor-pointer"
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin text-white" />
@@ -397,14 +408,14 @@ export default function LoginPage() {
                 // Step 1: Input Email
                 <form onSubmit={handleForgotPasswordRequest} className="space-y-4">
                   <div className="space-y-1">
-                    <h2 className="text-sm font-black text-slate-800 tracking-tight">Forgot Password</h2>
+                    <h2 className="text-sm font-bold text-slate-800 tracking-tight">Forgot Password</h2>
                     <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
                       Enter your registered email address below. We'll send you a 6-digit OTP verification code to securely change your password.
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 font-mono">Email Address</label>
+                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Email Address</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 pointer-events-none">
                         <Mail className="h-4 w-4" />
@@ -423,7 +434,7 @@ export default function LoginPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex items-center justify-center gap-2 w-full mt-6 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black tracking-wide shadow-md shadow-emerald-500/10 hover:shadow-emerald-500/25 active:scale-[0.98] transition disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed cursor-pointer"
+                    className="flex items-center justify-center gap-2 w-full mt-6 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold tracking-wide shadow-md shadow-emerald-500/10 hover:shadow-emerald-500/25 active:scale-[0.98] transition disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {loading ? (
                       <Loader2 className="h-4 w-4 animate-spin text-white" />
@@ -439,14 +450,14 @@ export default function LoginPage() {
                 // Step 2: Input OTP & New Password
                 <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
                   <div className="space-y-1">
-                    <h2 className="text-sm font-black text-slate-800 tracking-tight">Verify Security Code</h2>
+                    <h2 className="text-sm font-bold text-slate-800 tracking-tight">Verify Security Code</h2>
                     <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
                       We have dispatched a 6-digit OTP code to <span className="font-bold text-slate-700">{forgotEmail}</span>. Please enter it below along with your new password.
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 font-mono">Verification Code</label>
+                    <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Verification Code</label>
                     <input
                       type="text"
                       required
@@ -455,13 +466,13 @@ export default function LoginPage() {
                       placeholder="Enter 6-digit OTP"
                       value={forgotOtp}
                       onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, ''))}
-                      className="w-full px-4 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none text-center font-mono text-lg font-black tracking-[4px] text-slate-800 placeholder-slate-400"
+                      className="w-full px-4 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none text-center font-mono text-lg font-bold tracking-[4px] text-slate-800 placeholder-slate-400"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">New Password</label>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">New Password</label>
                       <input
                         type="password"
                         required
@@ -473,7 +484,7 @@ export default function LoginPage() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">Confirm</label>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Confirm</label>
                       <input
                         type="password"
                         required
@@ -488,7 +499,7 @@ export default function LoginPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex items-center justify-center gap-2 w-full mt-6 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black tracking-wide shadow-md shadow-emerald-500/10 hover:shadow-emerald-500/25 active:scale-[0.98] transition disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed cursor-pointer"
+                    className="flex items-center justify-center gap-2 w-full mt-6 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold tracking-wide shadow-md shadow-emerald-500/10 hover:shadow-emerald-500/25 active:scale-[0.98] transition disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {loading ? (
                       <Loader2 className="h-4 w-4 animate-spin text-white" />
@@ -502,23 +513,18 @@ export default function LoginPage() {
 
           ) : registeredSuccess ? (
 
-            
             // --- TAB 2 SUCCESS: ACCESS SUBMITTED PANELS ---
             <div className="space-y-5 text-center py-2 animate-in zoom-in-95 duration-200">
               <div className="mx-auto h-11 w-11 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm">
                 <CheckCircle2 className="h-5.5 w-5.5 animate-bounce" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">Access Request Registered!</h3>
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Company Registered!</h3>
                 <p className="text-[11px] text-slate-500 leading-relaxed font-semibold">
-                  Your {registerRole === 'sales_admin' ? 'Sales Manager' : 'Sales Representative'} account request has been registered and is currently **pending activation**.
+                  Your organization registration request is currently **pending approval**.
                 </p>
-                <div className="text-[9px] text-amber-700 font-bold bg-amber-50 border border-amber-100 p-2.5 rounded leading-relaxed font-mono">
-                  {registerRole === 'sales_admin' ? (
-                    <span>🔒 Note: You will be able to log in once the CRM Owner approves your credentials.</span>
-                  ) : (
-                    <span>🔒 Note: You will be able to log in once the Sales Manager approves your credentials.</span>
-                  )}
+                <div className="text-[9px] text-amber-700 font-bold bg-amber-50 border border-amber-100 p-2.5 rounded leading-relaxed">
+                  <span>🔒 Note: You will be able to log in once the Super Admin approves your company registration.</span>
                 </div>
               </div>
               <button
@@ -533,9 +539,38 @@ export default function LoginPage() {
           ) : (
             
             // --- TAB 2: REQUEST ACCESS FORM VIEW ---
-            <form onSubmit={handleRegisterSubmit} className="space-y-4 animate-in fade-in duration-200">
+            <form onSubmit={handleRegisterSubmit} className="space-y-4 animate-in fade-in duration-200" autoComplete="off">
               <div className="space-y-1">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">Full Name</label>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Company / Organization Name</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 pointer-events-none">
+                    <User className="h-4 w-4 text-emerald-500 animate-pulse" />
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    placeholder="E.g. Tata Motors"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    autoComplete="off"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 hover:border-slate-350 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition text-xs text-slate-850 placeholder-slate-400 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">CRM Sector *</label>
+                <select
+                  value={sector}
+                  onChange={(e) => setSector(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 focus:border-emerald-550 focus:ring-1 focus:ring-emerald-550 focus:outline-none transition text-xs text-slate-850 font-semibold"
+                >
+                  <option value="SOFTWARE_SERVICES">Software Services</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Owner / Administrator Name</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 pointer-events-none">
                     <User className="h-4 w-4" />
@@ -543,16 +578,17 @@ export default function LoginPage() {
                   <input
                     type="text"
                     required
-                    placeholder="E.g. Vikram Sen"
+                    placeholder="E.g. Rajesh Kumar"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    autoComplete="off"
                     className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 hover:border-slate-350 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition text-xs text-slate-850 placeholder-slate-400 font-semibold"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">Email Address</label>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Owner Email Address</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 pointer-events-none">
                     <Mail className="h-4 w-4" />
@@ -560,47 +596,38 @@ export default function LoginPage() {
                   <input
                     type="email"
                     required
-                    placeholder="vikram@company.com"
+                    placeholder="rajesh@tata.com"
                     value={registerEmail}
                     onChange={(e) => setRegisterEmail(e.target.value)}
+                    autoComplete="new-email"
                     className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 hover:border-slate-350 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition text-xs text-slate-850 placeholder-slate-400 font-semibold"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">Applying For Role</label>
-                <select
-                  value={registerRole}
-                  onChange={(e) => setRegisterRole(e.target.value)}
-                  className="w-full px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 transition cursor-pointer text-slate-800"
-                >
-                  <option value="sales_rep">Sales Representative (Executive)</option>
-                  <option value="sales_admin">Sales Manager</option>
-                </select>
-              </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">Password</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Password</label>
                   <input
                     type="password"
                     required
                     placeholder="Min 6 chars"
                     value={registerPassword}
                     onChange={(e) => setRegisterPassword(e.target.value)}
+                    autoComplete="new-password"
                     className="w-full px-3 py-2 rounded-lg bg-slate-50/50 border border-slate-200 hover:border-slate-350 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition text-xs text-slate-850 placeholder-slate-400"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">Confirm</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Confirm</label>
                   <input
                     type="password"
                     required
                     placeholder="Repeat password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
                     className="w-full px-3 py-2 rounded-lg bg-slate-50/50 border border-slate-200 hover:border-slate-350 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition text-xs text-slate-850 placeholder-slate-400"
                   />
                 </div>
@@ -609,12 +636,12 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex items-center justify-center gap-2 w-full mt-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black tracking-wide shadow-md shadow-indigo-500/10 hover:shadow-indigo-500/25 active:scale-[0.98] transition disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed cursor-pointer"
+                className="flex items-center justify-center gap-2 w-full mt-6 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold tracking-wide shadow-md shadow-emerald-500/10 hover:shadow-emerald-500/25 active:scale-[0.98] transition disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed cursor-pointer"
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin text-white" />
                 ) : (
-                  'Request Executive Access'
+                  'Register Company'
                 )}
               </button>
             </form>
@@ -629,7 +656,7 @@ export default function LoginPage() {
             <button
               onClick={handleSeedInit}
               disabled={loading}
-              className="text-emerald-600 hover:text-emerald-500 font-bold underline transition cursor-pointer font-mono"
+              className="text-emerald-600 hover:text-emerald-500 font-bold underline transition cursor-pointer"
             >
               Initialize Database Seeder
             </button>
