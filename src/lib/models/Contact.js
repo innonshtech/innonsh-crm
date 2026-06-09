@@ -72,8 +72,17 @@ const ContactSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Active', 'Inactive'],
+      enum: ['Active', 'Inactive', 'Qualified', 'Lost'],
       default: 'Active',
+    },
+    nextFollowUpDate: {
+      type: Date,
+      default: null,
+    },
+    followUpType: {
+      type: String,
+      enum: ['Call', 'Meeting', 'Demo', 'WhatsApp', 'Email', 'None', ''],
+      default: 'None',
     },
   },
   {

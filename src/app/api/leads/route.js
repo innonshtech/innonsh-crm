@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { mapLeadToFrontend } from '@/lib/dbMapper';
 import { getUserFromRequest, checkModuleAccess } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { ensureContactForLead } from '@/lib/contactAutomation';
 
 // GET /api/leads - Fetch lead list with strict role-based access control & dynamic filters
 export async function GET(req) {
@@ -41,7 +42,7 @@ export async function GET(req) {
       // Query Supabase
       let queryBuilder = supabase
         .from('leads')
-        .select('*, assignee:users!fk_leads_assigned_to(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)');
+        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!leads_created_by_fkey(id, name, email, role), lead_notes(*), lead_attachments(*)');
 
       // STRICT MULTI-TENANT ISOLATION
       if (decodedUser.orgId) {
@@ -86,15 +87,19 @@ export async function GET(req) {
       } else if (readScope === 'No') {
         return NextResponse.json({ success: true, leads: [] });
       } else if (readScope === 'Team List only') {
-        queryBuilder = queryBuilder.or(`created_by.eq.${decodedUser.id},assigned_to.eq.${decodedUser.id},created_by_role.eq.sales_rep,created_by_role.eq.sales_admin,created_by.is.null,is_public.eq.true`);
+        // Fetch all leads for multi-tenant org and filter in memory later
       } else {
         // Assigned Only or Personal Only
-        queryBuilder = queryBuilder.or(`created_by.eq.${decodedUser.id},assigned_to.eq.${decodedUser.id},and(created_by.is.null,assigned_to.is.null),is_public.eq.true`);
+        queryBuilder = queryBuilder.or(`created_by.eq.${decodedUser.id},assigned_to.eq.${decodedUser.id},and(created_by.is.null,assigned_to.is.null),visibility_scope.eq.GLOBAL`);
       }
 
       // Filters
       if (status) {
-        queryBuilder = queryBuilder.eq('status', status);
+        if (status === 'Active') {
+          queryBuilder = queryBuilder.not('status', 'eq', 'Qualified').not('status', 'eq', 'Lost');
+        } else {
+          queryBuilder = queryBuilder.eq('status', status);
+        }
       }
       if (source) {
         queryBuilder = queryBuilder.eq('source', source);
@@ -120,6 +125,22 @@ export async function GET(req) {
 
       // Map raw postgres rows to frontend camelCase formats
       leads = (data || []).map(mapLeadToFrontend);
+
+      // In-memory filtering for Team List only scope
+      if (readScope === 'Team List only') {
+        leads = leads.filter(lead => {
+          const creatorRole = lead.createdByRole || 'sales_rep';
+          const isCreatorOwner = creatorRole === 'owner';
+          const isCreatorSelf = lead.createdBy === decodedUser.id;
+          const isAssigneeSelf = lead.assignedTo && (lead.assignedTo.id === decodedUser.id || lead.assignedTo === decodedUser.id);
+          const isPublic = lead.isPublic;
+
+          if (isCreatorOwner && !isCreatorSelf && !isAssigneeSelf && !isPublic) {
+            return false;
+          }
+          return true;
+        });
+      }
 
       // Sort results
       if (sortBy === 'latest_communication') {
@@ -169,7 +190,13 @@ export async function GET(req) {
         }
       }
 
-      if (status) query.status = status;
+      if (status) {
+        if (status === 'Active') {
+          query.status = { $nin: ['Qualified', 'Lost'] };
+        } else {
+          query.status = status;
+        }
+      }
       if (source) query.source = source;
       if (priority) query.priority = priority;
 
@@ -417,8 +444,7 @@ export async function POST(req) {
             custom_data: body.custom_data || {},
             org_id: decodedUser.orgId,
             created_by: decodedUser.id,
-            created_by_role: decodedUser.role,
-            is_public: finalIsPublic
+            visibility_scope: finalIsPublic ? 'GLOBAL' : 'PERSONAL'
           }
         ])
         .select('*')
@@ -444,11 +470,16 @@ export async function POST(req) {
       // Fetch freshly joined lead to match response data
       const { data: refreshedLead } = await supabase
         .from('leads')
-        .select('*, assignee:users!fk_leads_assigned_to(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)')
+        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)')
         .eq('id', newLead.id)
         .single();
 
       finalLead = mapLeadToFrontend(refreshedLead);
+
+      // Auto-create permanent customer contact record if lead is Qualified
+      if (refreshedLead && refreshedLead.status === 'Qualified') {
+        await ensureContactForLead(refreshedLead, decodedUser);
+      }
 
       // Auto-create Task Reminder
       if (newLead.next_follow_up_date) {
@@ -571,6 +602,11 @@ export async function POST(req) {
       finalLead = await Lead.findById(newLead._id)
         .populate('assignedTo', 'name email')
         .populate('createdBy', 'name email role');
+
+      // Auto-create permanent customer contact record if lead is Qualified
+      if (finalLead && finalLead.status === 'Qualified') {
+        await ensureContactForLead(finalLead, decodedUser);
+      }
 
       if (newLead.nextFollowUpDate) {
         try {

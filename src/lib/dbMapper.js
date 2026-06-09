@@ -79,7 +79,7 @@ export function mapLeadToFrontend(lead) {
       email: lead.createdBy.email,
       role: lead.createdBy.role
     } : null),
-    isPublic: lead.is_public || lead.isPublic || false,
+    isPublic: lead.is_public || lead.isPublic || (lead.visibility_scope === 'GLOBAL'),
     score: lead.score || 0,
     customFields: lead.custom_fields || [],
     customData: lead.custom_data || {},
@@ -197,12 +197,50 @@ export function mapContactToFrontend(contact) {
             customData: contact.organizationId.customData || {},
           }
         : null),
-    status: contact.status || 'Active',
-    customData: contact.custom_data || {},
-    createdAt: contact.created_at,
-    updatedAt: contact.updated_at,
-  };
-}
+     status: contact.status || 'Active',
+     customData: contact.custom_data || contact.customData || {},
+     nextFollowUpDate: contact.next_follow_up_date || contact.nextFollowUpDate || null,
+     followUpType: contact.follow_up_type || contact.followUpType || 'None',
+     notes: contact.lead_notes ? contact.lead_notes.map(n => ({
+       _id: n.id,
+       id: n.id,
+       text: n.text,
+       createdBy: n.created_by,
+       createdByName: n.created_by_name,
+       createdAt: n.created_at,
+       updatedAt: n.updated_at
+     })) : (contact.leads?.lead_notes ? contact.leads.lead_notes.map(n => ({
+       _id: n.id,
+       id: n.id,
+       text: n.text,
+       createdBy: n.created_by,
+       createdByName: n.created_by_name,
+       createdAt: n.created_at,
+       updatedAt: n.updated_at
+     })) : (contact.notes || [])),
+     attachments: contact.lead_attachments ? contact.lead_attachments.map(a => ({
+       _id: a.id,
+       id: a.id,
+       fileName: a.file_name,
+       fileData: a.file_data,
+       fileType: a.file_type,
+       fileSize: a.file_size,
+       uploadedBy: a.uploaded_by,
+       uploadedAt: a.uploaded_at
+     })) : (contact.leads?.lead_attachments ? contact.leads.lead_attachments.map(a => ({
+       _id: a.id,
+       id: a.id,
+       fileName: a.file_name,
+       fileData: a.file_data,
+       fileType: a.file_type,
+       fileSize: a.file_size,
+       uploadedBy: a.uploaded_by,
+       uploadedAt: a.uploaded_at
+     })) : (contact.attachments || [])),
+     createdAt: contact.created_at || contact.createdAt,
+     updatedAt: contact.updated_at || contact.updatedAt,
+   };
+ }
 
 export function mapDealToFrontend(deal) {
   if (!deal) return null;

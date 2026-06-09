@@ -17,17 +17,10 @@ export async function GET(req) {
       return NextResponse.json({ success: true, rolesPermissions: {} });
     }
 
-    const { data: org, error } = await supabase
-      .from('organizations')
-      .select('roles_permissions')
-      .eq('id', user.orgId)
-      .maybeSingle();
-
-    if (error) throw error;
-
+    // Supabase PostgreSQL does not support customizable roles_permissions yet. Fall back to defaults.
     return NextResponse.json({
       success: true,
-      rolesPermissions: org?.roles_permissions || {},
+      rolesPermissions: {},
     });
   } catch (err) {
     console.error('GET roles-permissions error:', err);
@@ -55,12 +48,7 @@ export async function PUT(req) {
     }
 
     if (supabase) {
-      const { error } = await supabase
-        .from('organizations')
-        .update({ roles_permissions: rolesPermissions })
-        .eq('id', user.orgId);
-
-      if (error) throw error;
+      // Supabase PostgreSQL does not support customizable roles_permissions yet.
     }
 
     return NextResponse.json({

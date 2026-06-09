@@ -81,9 +81,8 @@ export default function UsersDirectoryPage() {
     if (!name.trim() || !email.trim() || !password || !role) {
       return alert('Please fill in all employee metadata fields.');
     }
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!passwordRegex.test(password)) {
-      return alert('Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character.');
+    if (password.length < 6) {
+      return alert('Security password must be at least 6 characters long.');
     }
 
     setSubmitting(true);

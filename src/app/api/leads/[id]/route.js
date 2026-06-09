@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { mapLeadToFrontend } from '@/lib/dbMapper';
 import { getUserFromRequest, checkLeadVisibility, checkLeadEditPermission } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { ensureContactForLead } from '@/lib/contactAutomation';
 
 // GET /api/leads/[id] - Fetch single lead details with validation
 export async function GET(req, { params }) {
@@ -32,7 +33,7 @@ export async function GET(req, { params }) {
     if (supabase) {
       const { data, error } = await supabase
         .from('leads')
-        .select('*, assignee:users!fk_leads_assigned_to(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)')
+        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!leads_created_by_fkey(id, name, email, role), lead_notes(*), lead_attachments(*)')
         .eq('id', id)
         .maybeSingle();
 
@@ -109,7 +110,7 @@ export async function PUT(req, { params }) {
     if (supabase) {
       const { data: existingLead, error: fetchError } = await supabase
         .from('leads')
-        .select('*, assignee:users!fk_leads_assigned_to(id, name, email), creator:users!created_by(id, name, email, role)')
+        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!created_by(id, name, email, role)')
         .eq('id', id)
         .maybeSingle();
 
@@ -374,13 +375,18 @@ export async function PUT(req, { params }) {
       // Fetch populated fresh document to return to client
       const { data: refreshedLead, error: refreshError } = await supabase
         .from('leads')
-        .select('*, assignee:users!fk_leads_assigned_to(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)')
+        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)')
         .eq('id', id)
         .single();
 
       if (refreshError) {
         console.error('Supabase refresh lead error:', refreshError);
         throw refreshError;
+      }
+
+      // Auto-create permanent customer contact record if lead is Qualified
+      if (refreshedLead && refreshedLead.status === 'Qualified') {
+        await ensureContactForLead(refreshedLead, decodedUser);
       }
 
       return NextResponse.json({
@@ -604,6 +610,11 @@ export async function PUT(req, { params }) {
         .populate('assignedTo', 'name email')
         .populate('createdBy', 'name email role');
 
+      // Auto-create permanent customer contact record if lead is Qualified
+      if (updatedLead && updatedLead.status === 'Qualified') {
+        await ensureContactForLead(updatedLead, decodedUser);
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Lead updated successfully',
@@ -650,9 +661,9 @@ export async function DELETE(req, { params }) {
     }
 
     if (supabase) {
-      const { data: lead, error: fetchError } = await supabase
+      const { data: leadRaw, error: fetchError } = await supabase
         .from('leads')
-        .select('id, assigned_to, created_by, created_by_role, is_public')
+        .select('id, assigned_to, created_by, creator:users!leads_created_by_fkey(id, role), visibility_scope')
         .eq('id', id)
         .maybeSingle();
 
@@ -661,9 +672,18 @@ export async function DELETE(req, { params }) {
         throw fetchError;
       }
 
-      if (!lead) {
+      if (!leadRaw) {
         return NextResponse.json({ error: 'Lead not found.' }, { status: 404 });
       }
+
+      // Map Supabase columns to auth checker conventions
+      const lead = {
+        ...leadRaw,
+        is_public: leadRaw.visibility_scope === 'GLOBAL',
+        isPublic: leadRaw.visibility_scope === 'GLOBAL',
+        created_by_role: leadRaw.creator ? leadRaw.creator.role : 'sales_rep',
+        createdByRole: leadRaw.creator ? leadRaw.creator.role : 'sales_rep',
+      };
 
       // SECURITY CHECK: Role-based delete permission check (e.g. owner cannot delete another owner's lead they can't see)
       if (!checkLeadEditPermission(lead, decodedUser, rolesPermissions)) {

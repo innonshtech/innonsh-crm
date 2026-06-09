@@ -119,13 +119,20 @@ export async function GET(req) {
 
         if (lead) {
           const newScore = (lead.score || 0) + 20;
-          await supabase
+          const { data: updatedLead } = await supabase
             .from('leads')
             .update({
               score: newScore,
               status: 'Qualified'
             })
-            .eq('id', lead.id);
+            .eq('id', lead.id)
+            .select('*')
+            .single();
+
+          if (updatedLead) {
+            const { ensureContactForLead } = await import('@/lib/contactAutomation');
+            await ensureContactForLead(updatedLead, email.sent_by);
+          }
 
           const noteText = `📥 PDF Proposal Downloaded: Client downloaded attached file [${email.proposal_file || 'Proposal.pdf'}] (Lead Score: ${newScore}, Status auto-shifted to Qualified)`;
           await supabase.from('lead_notes').insert([{
@@ -213,6 +220,9 @@ export async function GET(req) {
             createdByName: 'Proposal Tracker Engine'
           });
           await lead.save();
+
+          const { ensureContactForLead } = await import('@/lib/contactAutomation');
+          await ensureContactForLead(lead, email.sentBy);
 
           const targetRecipient = lead.assignedTo || email.sentBy;
           await Notification.create({

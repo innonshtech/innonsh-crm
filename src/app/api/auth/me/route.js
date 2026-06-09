@@ -33,11 +33,12 @@ export async function GET(req) {
 
     let userSectorId = 'SOFTWARE_SERVICES';
     let userSectorName = 'Software Services';
+    let userRolesPermissions = {};
     let sectorConfig = {
       leadTerm: 'Lead',
       productTerm: 'Product',
       dealTerm: 'Deal',
-      pipelineStages: ['Lead Capture', 'Demo Call', 'Negotiation', 'Won', 'Lost']
+      pipelineStages: ['Prospecting', 'Proposal', 'Negotiation', 'Won', 'Lost']
     };
 
     // 2. FRESH FETCH FROM DB
@@ -73,6 +74,7 @@ export async function GET(req) {
             userCompanyName = orgData.name;
             userEnabledModules = orgData.enabled_modules || [];
             userGstin = orgData.gstin || '';
+            userRolesPermissions = {};
             const sectorIdVal = orgData.sector || 'SOFTWARE_SERVICES';
 
             // Fetch sector config details
@@ -132,6 +134,7 @@ export async function GET(req) {
         sectorId: userSectorId,
         sectorName: userSectorName,
         sectorConfig,
+        rolesPermissions: userRolesPermissions,
       },
     });
   } catch (error) {
