@@ -4,7 +4,6 @@ import connectToDatabase from '@/lib/db';
 import User from '@/lib/models/User';
 import { supabase } from '@/lib/supabaseClient';
 import { mapUserToFrontend } from '@/lib/dbMapper';
-import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +25,20 @@ export async function GET(req) {
     let userEmail = null;
     let userRole = null;
     let userIsActive = true;
+    let userIsSuperAdmin = false;
+    let userCompanyName = '';
+    let userOrgId = null;
+    let userGstin = '';
+    let userEnabledModules = ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'analytics', 'users', 'roles', 'teams'];
+
+    let userSectorId = 'SOFTWARE_SERVICES';
+    let userSectorName = 'Software Services';
+    let sectorConfig = {
+      leadTerm: 'Lead',
+      productTerm: 'Product',
+      dealTerm: 'Deal',
+      pipelineStages: ['Lead Capture', 'Demo Call', 'Negotiation', 'Won', 'Lost']
+    };
 
     // 2. FRESH FETCH FROM DB
     if (supabase) {
@@ -44,6 +57,43 @@ export async function GET(req) {
         userEmail = data.email;
         userRole = data.role;
         userIsActive = data.is_active;
+        userIsSuperAdmin = data.is_super_admin || data.role === 'superadmin';
+        userOrgId = data.org_id;
+
+        // Fetch organization details
+        if (data.org_id && !data.is_super_admin) {
+          const { data: orgData, error: orgError } = await supabase
+            .from('organizations')
+            .select('name, enabled_modules, gstin, sector')
+            .eq('id', data.org_id)
+            .maybeSingle();
+          if (orgError) {
+            console.error('Supabase organization fetch error:', orgError);
+          } else if (orgData) {
+            userCompanyName = orgData.name;
+            userEnabledModules = orgData.enabled_modules || [];
+            userGstin = orgData.gstin || '';
+            const sectorIdVal = orgData.sector || 'SOFTWARE_SERVICES';
+
+            // Fetch sector config details
+            const { data: sectData } = await supabase
+              .from('saas_sectors_config')
+              .select('*')
+              .eq('id', sectorIdVal)
+              .maybeSingle();
+
+            if (sectData) {
+              userSectorId = sectData.id;
+              userSectorName = sectData.name;
+              sectorConfig = {
+                leadTerm: sectData.lead_term || 'Lead',
+                productTerm: sectData.product_term || 'Product',
+                dealTerm: sectData.deal_term || 'Deal',
+                pipelineStages: sectData.pipeline_stages || []
+              };
+            }
+          }
+        }
       }
     } else {
       await connectToDatabase();
@@ -55,6 +105,8 @@ export async function GET(req) {
         userEmail = mongoUser.email;
         userRole = mongoUser.role;
         userIsActive = mongoUser.isActive;
+        userIsSuperAdmin = mongoUser.isSuperAdmin || mongoUser.role === 'superadmin';
+        userOrgId = mongoUser.orgId || mongoUser.org_id || null;
       }
     }
 
@@ -72,6 +124,14 @@ export async function GET(req) {
         name: userName,
         email: userEmail,
         role: userRole,
+        companyName: userCompanyName,
+        isSuperAdmin: userIsSuperAdmin,
+        orgId: userOrgId,
+        enabledModules: userEnabledModules,
+        gstin: userGstin,
+        sectorId: userSectorId,
+        sectorName: userSectorName,
+        sectorConfig,
       },
     });
   } catch (error) {
@@ -136,26 +196,17 @@ export async function PUT(req) {
       return NextResponse.json({ error: 'User session not found or deactivated.' }, { status: 403 });
     }
 
-    const body = await req.json();
-    const updateProfileSchema = z.object({
-      name: z.string().min(1, 'Profile name cannot be left blank.').trim().optional(),
-      currentPassword: z.string().optional(),
-      newPassword: z.string().optional()
-    });
-
-    const parsed = updateProfileSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
-    }
-
-    const { name, currentPassword, newPassword } = parsed.data;
+    const { name, currentPassword, newPassword, gstin } = await req.json();
 
     let updatedName = userName;
     let updatedPassword = userHashedPassword;
 
     // 1. Update Name
-    if (name) {
-      updatedName = name;
+    if (name !== undefined) {
+      if (!name.trim()) {
+        return NextResponse.json({ error: 'Profile name cannot be left blank.' }, { status: 400 });
+      }
+      updatedName = name.trim();
     }
 
     // 2. Securely Change Password using Bcrypt verification
@@ -165,12 +216,28 @@ export async function PUT(req) {
         return NextResponse.json({ error: 'Incorrect current password.' }, { status: 400 });
       }
 
-      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-      if (!passwordRegex.test(newPassword)) {
-        return NextResponse.json({ error: 'Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character.' }, { status: 400 });
+      if (newPassword.length < 6) {
+        return NextResponse.json({ error: 'New password must be at least 6 characters long.' }, { status: 400 });
       }
 
       updatedPassword = await hashPassword(newPassword);
+    }
+
+    let updatedGstin = '';
+
+    // 3. Update GSTIN (Only Organization Owners / Managers)
+    if (gstin !== undefined && (userRole === 'owner' || userRole === 'sales_admin')) {
+      if (supabase && decodedUser.orgId) {
+        const { error: orgErr } = await supabase
+          .from('organizations')
+          .update({ gstin: gstin.trim() })
+          .eq('id', decodedUser.orgId);
+        if (orgErr) {
+          console.error('Supabase organization gstin update error:', orgErr);
+          throw orgErr;
+        }
+        updatedGstin = gstin.trim();
+      }
     }
 
     // Save Updates
@@ -192,6 +259,18 @@ export async function PUT(req) {
       }
 
       userName = data.name;
+
+      // If GSTIN wasn't updated in this request, fetch current one to return
+      if (gstin === undefined && data.org_id) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('gstin')
+          .eq('id', data.org_id)
+          .maybeSingle();
+        if (orgData) {
+          updatedGstin = orgData.gstin || '';
+        }
+      }
     } else {
       user.name = updatedName;
       user.password = updatedPassword;
@@ -206,7 +285,9 @@ export async function PUT(req) {
         id: userId,
         name: userName,
         email: userEmail,
-        role: userRole
+        role: userRole,
+        orgId: decodedUser.orgId,
+        gstin: updatedGstin
       }
     });
   } catch (error) {

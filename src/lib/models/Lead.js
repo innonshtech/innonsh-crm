@@ -73,8 +73,9 @@ const LeadSchema = new mongoose.Schema(
     },
     company: {
       type: String,
-      required: [true, 'Company name is required'],
+      required: false,
       trim: true,
+      default: '',
     },
     designation: {
       type: String,
@@ -177,30 +178,23 @@ const LeadSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      default: null, // Setting to null to prevent breaking existing leads, though logic should populate it
-    },
-    ownerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      default: null,
-    },
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null, // Null means unassigned lead
     },
-    assignedBy: {
+    createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
     },
-    visibilityScope: {
+    createdByRole: {
       type: String,
-      enum: ['PRIVATE', 'ASSIGNED', 'TEAM', 'GLOBAL'],
-      default: 'PRIVATE',
+      default: 'sales_rep',
+    },
+    isPublic: {
+      type: Boolean,
+      default: false,
     },
     score: {
       type: Number,

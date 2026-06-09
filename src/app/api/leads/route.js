@@ -4,7 +4,7 @@ import User from '@/lib/models/User';
 import Task from '@/lib/models/Task';
 import { supabase } from '@/lib/supabaseClient';
 import { mapLeadToFrontend } from '@/lib/dbMapper';
-import { getUserFromRequest } from '@/lib/auth';
+import { getUserFromRequest, checkModuleAccess } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 
 // GET /api/leads - Fetch lead list with strict role-based access control & dynamic filters
@@ -16,6 +16,13 @@ export async function GET(req) {
       return NextResponse.json(
         { error: 'Unauthorized. Please login to access leads.' },
         { status: 401 }
+      );
+    }
+
+    if (!checkModuleAccess(decodedUser, 'leads')) {
+      return NextResponse.json(
+        { error: '🔒 This module is not enabled for your organization. Please upgrade your subscription.' },
+        { status: 403 }
       );
     }
 
@@ -34,21 +41,41 @@ export async function GET(req) {
       // Query Supabase
       let queryBuilder = supabase
         .from('leads')
-        .select('*, users!leads_assigned_to_fkey(id, name, email), lead_notes(*), lead_attachments(*)');
+        .select('*, assignee:users!fk_leads_assigned_to(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)');
 
-      // STRICT ROLE-BASED ACCESS CONTROL (Leads Isolation)
-      if (decodedUser.role === 'sales_rep' || decodedUser.role === 'sales_admin') {
-        // Users can only see leads strictly assigned to them
-        queryBuilder = queryBuilder.eq('assigned_to', decodedUser.id);
-      } else if (decodedUser.role === 'owner') {
-        // Owner can see leads of non-owners, their own leads, and unassigned leads
-        const { data: otherOwners } = await supabase.from('users').select('id').eq('role', 'owner').neq('id', decodedUser.id);
-        const otherOwnerIds = (otherOwners || []).map(o => o.id);
-        
-        if (otherOwnerIds.length > 0) {
-          queryBuilder = queryBuilder.not('assigned_to', 'in', `(${otherOwnerIds.join(',')})`);
+      // STRICT MULTI-TENANT ISOLATION
+      if (decodedUser.orgId) {
+        queryBuilder = queryBuilder.eq('org_id', decodedUser.orgId);
+      }
+
+      // STICT ROLE-BASED ACCESS CONTROL (Leads Isolation)
+      let rolesPermissions = {};
+      if (decodedUser.orgId) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('roles_permissions')
+          .eq('id', decodedUser.orgId)
+          .maybeSingle();
+        if (orgData && orgData.roles_permissions) {
+          rolesPermissions = orgData.roles_permissions;
         }
-        
+      }
+
+      const defaultReadScopes = {
+        owner: 'Global',
+        sales_admin: 'Global',
+        sales_rep: 'Assigned Only'
+      };
+
+      const userRole = decodedUser.role;
+      const rolePerms = rolesPermissions[userRole] || [];
+      const leadsPerm = Array.isArray(rolePerms) 
+        ? rolePerms.find(p => p.module === 'Leads Directory')
+        : rolePerms['Leads Directory'];
+      
+      const readScope = leadsPerm ? leadsPerm.read : defaultReadScopes[userRole] || 'Assigned Only';
+
+      if (readScope === 'Global') {
         if (assignedToFilter) {
           if (assignedToFilter === 'all') {
             queryBuilder = queryBuilder.is('assigned_to', null);
@@ -56,12 +83,13 @@ export async function GET(req) {
             queryBuilder = queryBuilder.eq('assigned_to', assignedToFilter);
           }
         }
-      } else if (assignedToFilter) {
-        if (assignedToFilter === 'all') {
-          queryBuilder = queryBuilder.is('assigned_to', null);
-        } else {
-          queryBuilder = queryBuilder.eq('assigned_to', assignedToFilter);
-        }
+      } else if (readScope === 'No') {
+        return NextResponse.json({ success: true, leads: [] });
+      } else if (readScope === 'Team List only') {
+        queryBuilder = queryBuilder.or(`created_by.eq.${decodedUser.id},assigned_to.eq.${decodedUser.id},created_by_role.eq.sales_rep,created_by_role.eq.sales_admin,created_by.is.null,is_public.eq.true`);
+      } else {
+        // Assigned Only or Personal Only
+        queryBuilder = queryBuilder.or(`created_by.eq.${decodedUser.id},assigned_to.eq.${decodedUser.id},and(created_by.is.null,assigned_to.is.null),is_public.eq.true`);
       }
 
       // Filters
@@ -115,35 +143,29 @@ export async function GET(req) {
       await connectToDatabase();
       const query = {};
 
-      if (decodedUser.role === 'sales_rep' || decodedUser.role === 'sales_admin') {
-        // Users can only see leads strictly assigned to them
-        query.assignedTo = decodedUser.id;
-      } else if (decodedUser.role === 'owner') {
-        // Owner can see leads of non-owners, their own leads, and unassigned leads
-        const otherOwners = await User.find({ role: 'owner', _id: { $ne: decodedUser.id } }).select('_id');
-        const otherOwnerIds = otherOwners.map(o => o._id);
-        
-        if (otherOwnerIds.length > 0) {
-          query.assignedTo = { $nin: otherOwnerIds };
-        }
-        
+      if (decodedUser.role === 'sales_rep') {
+        query.$or = [
+          { createdBy: decodedUser.id },
+          { assignedTo: decodedUser.id },
+          { $and: [ { createdBy: null }, { assignedTo: null } ] },
+          { isPublic: true }
+        ];
+      } else {
+        query.$or = [
+          { createdBy: decodedUser.id },
+          { assignedTo: decodedUser.id },
+          { createdByRole: 'sales_rep' },
+          { createdByRole: 'sales_admin' },
+          { createdBy: null },
+          { isPublic: true }
+        ];
+
         if (assignedToFilter) {
           if (assignedToFilter === 'all') {
             query.assignedTo = null;
           } else {
-            // Ensure they cannot filter by another owner's ID
-            if (!otherOwnerIds.some(id => id.toString() === assignedToFilter)) {
-              query.assignedTo = assignedToFilter;
-            } else {
-              query.assignedTo = '000000000000000000000000'; // Invalid ObjectId to return no results
-            }
+            query.assignedTo = assignedToFilter;
           }
-        }
-      } else if (assignedToFilter) {
-        if (assignedToFilter === 'all') {
-          query.assignedTo = null;
-        } else {
-          query.assignedTo = assignedToFilter;
         }
       }
 
@@ -164,7 +186,9 @@ export async function GET(req) {
         ];
       }
 
-      let mongoLeads = await Lead.find(query).populate('assignedTo', 'name email');
+      let mongoLeads = await Lead.find(query)
+        .populate('assignedTo', 'name email')
+        .populate('createdBy', 'name email role');
 
       if (sortBy === 'latest_communication') {
         mongoLeads = mongoLeads.sort((a, b) => {
@@ -211,6 +235,13 @@ export async function POST(req) {
       );
     }
 
+    if (!checkModuleAccess(decodedUser, 'leads')) {
+      return NextResponse.json(
+        { error: '🔒 This module is not enabled for your organization. Please upgrade your subscription.' },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const {
       firstName,
@@ -237,11 +268,14 @@ export async function POST(req) {
       customFields,
       interestedProduct,
       followUpType,
+      isPublic,
     } = body;
 
-    if (!firstName || !company) {
+    const finalIsPublic = (decodedUser.role === 'owner') ? (isPublic === true) : false;
+
+    if (!firstName) {
       return NextResponse.json(
-        { error: 'First name and Company name are required.' },
+        { error: 'First name is required.' },
         { status: 400 }
       );
     }
@@ -358,7 +392,7 @@ export async function POST(req) {
           {
             first_name: firstName,
             last_name: lastName || '',
-            company,
+            company: company || '',
             designation: designation || '',
             email: email || '',
             phone: phone || '',
@@ -379,11 +413,12 @@ export async function POST(req) {
             follow_up_type: followUpType || 'None',
             next_follow_up_date: nextFollowUpDate ? new Date(nextFollowUpDate).toISOString() : null,
             assigned_to: finalAssignee,
+            custom_fields: customFields || [],
+            custom_data: body.custom_data || {},
+            org_id: decodedUser.orgId,
             created_by: decodedUser.id,
-            owner_id: decodedUser.id,
-            assigned_by: decodedUser.id,
-            visibility_scope: 'PRIVATE',
-            custom_fields: customFields || []
+            created_by_role: decodedUser.role,
+            is_public: finalIsPublic
           }
         ])
         .select('*')
@@ -409,7 +444,7 @@ export async function POST(req) {
       // Fetch freshly joined lead to match response data
       const { data: refreshedLead } = await supabase
         .from('leads')
-        .select('*, users!leads_assigned_to_fkey(id, name, email), lead_notes(*), lead_attachments(*)')
+        .select('*, assignee:users!fk_leads_assigned_to(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)')
         .eq('id', newLead.id)
         .single();
 
@@ -462,7 +497,7 @@ export async function POST(req) {
       const leadData = {
         firstName,
         lastName: lastName || '',
-        company,
+        company: company || '',
         designation: designation || '',
         email: email || '',
         phone: phone || '',
@@ -482,12 +517,11 @@ export async function POST(req) {
         interestedProduct: interestedProduct || '',
         followUpType: followUpType || 'None',
         nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
-        createdBy: decodedUser.id,
-        ownerId: decodedUser.id,
-        assignedBy: decodedUser.id,
-        visibilityScope: 'PRIVATE',
         customFields: customFields || [],
         notes: [],
+        createdBy: decodedUser.id,
+        createdByRole: decodedUser.role,
+        isPublic: finalIsPublic,
       };
 
       let finalAssignee = assignedTo || null;
@@ -534,7 +568,9 @@ export async function POST(req) {
       });
 
       const newLead = await Lead.create(leadData);
-      finalLead = newLead;
+      finalLead = await Lead.findById(newLead._id)
+        .populate('assignedTo', 'name email')
+        .populate('createdBy', 'name email role');
 
       if (newLead.nextFollowUpDate) {
         try {

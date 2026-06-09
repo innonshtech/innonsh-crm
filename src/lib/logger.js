@@ -1,4 +1,5 @@
 import winston from 'winston';
+import { supabase } from '@/lib/supabaseClient';
 
 // Configure Winston Logger
 const logger = winston.createLogger({
@@ -20,13 +21,29 @@ const logger = winston.createLogger({
   ],
 });
 
-export const auditLog = (action, userId, details) => {
+export const auditLog = async (action, userId, details) => {
   logger.info(`AUDIT: ${action}`, {
     userId,
     action,
     details,
     timestamp: new Date().toISOString()
   });
+
+  if (supabase) {
+    try {
+      await supabase.from('audit_logs').insert([{
+        action,
+        user_id: userId === 'system' ? null : userId,
+        org_id: details?.orgId || null,
+        resource_type: details?.resourceType || null,
+        resource_id: details?.resourceId || null,
+        details: typeof details === 'object' ? details : { raw: details },
+        ip_address: details?.ip || null
+      }]);
+    } catch (e) {
+      console.warn('Failed to insert audit log to Supabase', e);
+    }
+  }
 };
 
 export default logger;

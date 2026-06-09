@@ -35,6 +35,8 @@ export async function POST(req) {
     let userApprovalStatus = 'Approved';
     let userIsActive = true;
     let userHashedPassword = '';
+    let userOrgId = null;
+    let userIsSuperAdmin = false;
 
     // 1. DYNAMIC DATABASE DETECTOR
     if (supabase) {
@@ -56,6 +58,8 @@ export async function POST(req) {
         userApprovalStatus = data.approval_status;
         userIsActive = data.is_active;
         userHashedPassword = data.password;
+        userOrgId = data.org_id || null;
+        userIsSuperAdmin = data.is_super_admin || data.role === 'superadmin' || false;
       }
     } else {
       // Graceful fallback to MongoDB
@@ -70,6 +74,8 @@ export async function POST(req) {
         userApprovalStatus = mongoUser.approvalStatus;
         userIsActive = mongoUser.isActive;
         userHashedPassword = mongoUser.password;
+        userOrgId = mongoUser.orgId || mongoUser.org_id || null;
+        userIsSuperAdmin = mongoUser.isSuperAdmin || mongoUser.role === 'superadmin' || false;
       }
     }
 
@@ -105,12 +111,13 @@ export async function POST(req) {
       );
     }
 
-    // 3. Create session tokens (JWT)
     const sessionToken = signToken({
       id: userId,
       name: userName,
       email: userEmail,
       role: userRole,
+      orgId: userOrgId,
+      isSuperAdmin: userIsSuperAdmin,
     });
 
     const refreshToken = signRefreshToken({ id: userId });
@@ -155,6 +162,8 @@ export async function POST(req) {
         name: userName,
         email: userEmail,
         role: userRole,
+        orgId: userOrgId,
+        isSuperAdmin: userIsSuperAdmin,
       },
     });
 

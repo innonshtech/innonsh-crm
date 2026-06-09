@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { mapDealToFrontend } from '@/lib/dbMapper';
 import { getUserFromRequest } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { sanitizePayload } from '@/lib/sanitize';
 
 // PUT /api/deals/[id] - Update deal stage and details (Kanban drag-and-drop backend helper)
 export async function PUT(req, { params }) {
@@ -39,7 +40,8 @@ export async function PUT(req, { params }) {
         );
       }
 
-      const body = await req.json();
+      let body = await req.json();
+      body = sanitizePayload(body);
       const { title, value, stage, closingDate, assignedTo } = body;
 
       // Build updates list
@@ -101,7 +103,8 @@ export async function PUT(req, { params }) {
         );
       }
 
-      const body = await req.json();
+      let body = await req.json();
+      body = sanitizePayload(body);
       const { title, value, stage, closingDate, assignedTo } = body;
 
       // Build updates list
