@@ -35,7 +35,7 @@ export async function POST(req, { params }) {
     if (supabase) {
       const { data: leadRaw, error: fetchError } = await supabase
         .from('leads')
-        .select('id, assigned_to, created_by, creator:users!created_by(id, role), visibility_scope')
+        .select('id, assigned_to, created_by, creator:users!leads_created_by_fkey(id, role), visibility_scope')
         .eq('id', id)
         .maybeSingle();
 

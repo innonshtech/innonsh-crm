@@ -33,7 +33,7 @@ export async function GET(req, { params }) {
     if (supabase) {
       const { data, error } = await supabase
         .from('leads')
-        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)')
+        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!leads_created_by_fkey(id, name, email, role), lead_notes(*), lead_attachments(*)')
         .eq('id', id)
         .maybeSingle();
 
@@ -663,7 +663,7 @@ export async function DELETE(req, { params }) {
     if (supabase) {
       const { data: leadRaw, error: fetchError } = await supabase
         .from('leads')
-        .select('id, assigned_to, created_by, creator:users!created_by(id, role), visibility_scope')
+        .select('id, assigned_to, created_by, creator:users!leads_created_by_fkey(id, role), visibility_scope')
         .eq('id', id)
         .maybeSingle();
 

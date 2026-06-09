@@ -42,7 +42,7 @@ export async function GET(req) {
       // Query Supabase
       let queryBuilder = supabase
         .from('leads')
-        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)');
+        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!leads_created_by_fkey(id, name, email, role), lead_notes(*), lead_attachments(*)');
 
       // STRICT MULTI-TENANT ISOLATION
       if (decodedUser.orgId) {
@@ -95,7 +95,11 @@ export async function GET(req) {
 
       // Filters
       if (status) {
-        queryBuilder = queryBuilder.eq('status', status);
+        if (status === 'Active') {
+          queryBuilder = queryBuilder.not('status', 'eq', 'Qualified').not('status', 'eq', 'Lost');
+        } else {
+          queryBuilder = queryBuilder.eq('status', status);
+        }
       }
       if (source) {
         queryBuilder = queryBuilder.eq('source', source);
@@ -186,7 +190,13 @@ export async function GET(req) {
         }
       }
 
-      if (status) query.status = status;
+      if (status) {
+        if (status === 'Active') {
+          query.status = { $nin: ['Qualified', 'Lost'] };
+        } else {
+          query.status = status;
+        }
+      }
       if (source) query.source = source;
       if (priority) query.priority = priority;
 

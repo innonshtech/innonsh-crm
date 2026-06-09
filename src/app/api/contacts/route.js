@@ -202,7 +202,9 @@ export async function POST(req) {
       assignedTo,
       organizationId,
       status,
-      customData
+      customData,
+      nextFollowUpDate,
+      followUpType
     } = body;
 
     // Validation
@@ -286,7 +288,37 @@ export async function POST(req) {
         }
       }
 
-      // Insert into Supabase
+      // 1. Create a corresponding Qualified lead first to get a lead_id
+      const { data: newLead, error: leadInsertError } = await supabase
+        .from('leads')
+        .insert([
+          {
+            first_name: firstName.trim(),
+            last_name: lastName || '',
+            company: company || '',
+            designation: designation || '',
+            email: cleanEmail,
+            phone: cleanPhone,
+            whatsapp: whatsapp || '',
+            city: city || '',
+            state: state || '',
+            country: country || 'India',
+            assigned_to: targetAssignee,
+            status: 'Qualified',
+            org_id: decodedUser.orgId,
+            custom_data: customData || {},
+            next_follow_up_date: nextFollowUpDate ? new Date(nextFollowUpDate).toISOString() : null,
+            follow_up_type: followUpType || 'None'
+          }
+        ])
+        .select('id')
+        .single();
+
+      if (leadInsertError) {
+        console.error('Supabase auto-create lead error:', leadInsertError);
+      }
+
+      // Insert into Supabase contacts
       const { data: newContact, error: insertError } = await supabase
         .from('contacts')
         .insert([
@@ -305,7 +337,10 @@ export async function POST(req) {
             assigned_to: targetAssignee,
             status: status || 'Active',
             org_id: decodedUser.orgId,
-            custom_data: customData || {}
+            custom_data: customData || {},
+            next_follow_up_date: nextFollowUpDate ? new Date(nextFollowUpDate).toISOString() : null,
+            follow_up_type: followUpType || 'None',
+            lead_id: newLead ? newLead.id : null
           }
         ])
         .select('*')
@@ -374,6 +409,33 @@ export async function POST(req) {
         }
       }
 
+      // 1. Create a corresponding Qualified lead first to get a leadId
+      let newLeadId = null;
+      try {
+        const mongoLead = await Lead.create({
+          firstName: firstName.trim(),
+          lastName: lastName || '',
+          company: company || '',
+          designation: designation || '',
+          email: cleanEmail,
+          phone: cleanPhone,
+          whatsapp: whatsapp || '',
+          city: city || '',
+          state: state || '',
+          country: country || 'India',
+          assignedTo: targetAssignee,
+          status: 'Qualified',
+          createdBy: decodedUser.id,
+          isPublic: false,
+          customFields: [],
+          nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
+          followUpType: followUpType || 'None'
+        });
+        newLeadId = mongoLead._id;
+      } catch (leadErr) {
+        console.error('MongoDB auto-create lead error:', leadErr);
+      }
+
       const mongoContact = await Contact.create({
         firstName: firstName.trim(),
         lastName: lastName || '',
@@ -387,7 +449,10 @@ export async function POST(req) {
         country: country || 'India',
         organizationId: finalOrgId || null,
         assignedTo: targetAssignee,
-        status: status || 'Active'
+        status: status || 'Active',
+        nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
+        followUpType: followUpType || 'None',
+        leadId: newLeadId
       });
 
       finalContact = await Contact.findById(mongoContact._id)

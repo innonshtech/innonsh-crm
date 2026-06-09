@@ -92,7 +92,7 @@ export default function LeadsPage() {
 
   // Filters state
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('Active');
   const [sourceFilter, setSourceFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [repFilter, setRepFilter] = useState('');
@@ -1088,11 +1088,12 @@ export default function LeadsPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-600 transition"
           >
-            <option value="">All Statuses</option>
+            <option value="Active">Active Leads (Default)</option>
+            <option value="">All Statuses (inc. Converted/Lost)</option>
             <option value="New">New</option>
             <option value="Contacted">Contacted</option>
             <option value="Attempted">Attempted Contact</option>
-            <option value="Qualified">Qualified</option>
+            <option value="Qualified">Qualified (Converted)</option>
             <option value="Lost">Lost</option>
             <option value="Future">Contact in Future</option>
           </select>

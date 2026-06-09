@@ -9,7 +9,7 @@
 
 const { Client } = require('pg');
 
-require('dotenv').config({ path: '../.env' });
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env.local') });
 const DB_URL = process.env.DATABASE_URL;
 
 const MIGRATIONS = [

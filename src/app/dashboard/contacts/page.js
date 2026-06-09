@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { 
   Loader2, 
@@ -27,7 +27,12 @@ import {
   Building2,
   Tag,
   Hash,
-  DollarSign
+  DollarSign,
+  Clock,
+  MessageSquare,
+  Paperclip,
+  File,
+  Download
 } from 'lucide-react';
 
 const getCustomFieldIcon = (iconName) => {
@@ -48,6 +53,23 @@ const getCustomFieldIcon = (iconName) => {
   }
 };
 
+// Helper to safely parse Postgres date strings in strict browsers (like Safari)
+const safeNewDate = (dateVal) => {
+  if (!dateVal) return new Date();
+  let dateStr = String(dateVal);
+  if (dateStr.includes(' ') && !dateStr.includes('T')) {
+    dateStr = dateStr.replace(' ', 'T');
+  }
+  return new Date(dateStr);
+};
+
+// Helper to convert local datetime-local value (YYYY-MM-DDTHH:MM) to UTC ISO string before saving to database
+const localToUTCISO = (localTimeStr) => {
+  if (!localTimeStr) return null;
+  const date = new Date(localTimeStr);
+  return isNaN(date.getTime()) ? null : date.toISOString();
+};
+
 export default function ContactsPage() {
   const [contacts, setContacts] = useState([]);
   const [clientOrganizations, setClientOrganizations] = useState([]);
@@ -56,6 +78,14 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState({ text: '', type: '' });
+  
+  // Follow-up, notes and status flow states
+  const [nextFollowUpDate, setNextFollowUpDate] = useState('');
+  const [followUpType, setFollowUpType] = useState('None');
+  const [newNoteText, setNewNoteText] = useState('');
+  const [isEditingStatus, setIsEditingStatus] = useState(false);
+  const [editStatus, setEditStatus] = useState('');
+  const attachmentInputRef = useRef(null);
 
   // Filters & Search
   const [search, setSearch] = useState('');
@@ -188,16 +218,25 @@ export default function ContactsPage() {
       const res = await fetch(`/api/contacts/${contactId}`);
       if (res.ok) {
         const data = await res.json();
-        // Since we retrieve the selected item
         setSelectedContact(data.contact);
+        setEditStatus(data.contact.status || 'Active');
+        setIsEditingStatus(false);
       } else {
         // Direct local search mapping fallback
         const localItem = contacts.find(c => c._id === contactId);
-        if (localItem) setSelectedContact(localItem);
+        if (localItem) {
+          setSelectedContact(localItem);
+          setEditStatus(localItem.status || 'Active');
+          setIsEditingStatus(false);
+        }
       }
     } catch (err) {
       const localItem = contacts.find(c => c._id === contactId);
-      if (localItem) setSelectedContact(localItem);
+      if (localItem) {
+        setSelectedContact(localItem);
+        setEditStatus(localItem.status || 'Active');
+        setIsEditingStatus(false);
+      }
     }
   };
 
@@ -227,7 +266,9 @@ export default function ContactsPage() {
       country: country.trim(),
       assignedTo: assignedTo || undefined,
       status,
-      customData: customFieldsData
+      customData: customFieldsData,
+      nextFollowUpDate: nextFollowUpDate ? localToUTCISO(nextFollowUpDate) : null,
+      followUpType: followUpType || 'None'
     };
 
     try {
@@ -280,7 +321,9 @@ export default function ContactsPage() {
       country: country.trim(),
       assignedTo: assignedTo || undefined,
       status,
-      customData: customFieldsData
+      customData: customFieldsData,
+      nextFollowUpDate: nextFollowUpDate ? localToUTCISO(nextFollowUpDate) : null,
+      followUpType: followUpType || 'None'
     };
 
     try {
@@ -324,6 +367,176 @@ export default function ContactsPage() {
       }
     } catch (err) {
       console.error('Delete contact profile error:', err);
+    }
+  };
+
+  // Handle Quick Status Update inside profile Drawer
+  const handleUpdateStatus = async () => {
+    try {
+      const res = await fetch(`/api/contacts/${selectedContact._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: editStatus
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSelectedContact(data.contact);
+        fetchContacts();
+        setIsEditingStatus(false);
+        showToast('🔄 Status updated successfully!');
+      } else {
+        showToast(data.error || 'Failed to update status.', 'error');
+      }
+    } catch (err) {
+      console.error('Update contact status error:', err);
+      showToast('Network error updating status.', 'error');
+    }
+  };
+
+  // Log follow-up note submit
+  const handleAddNote = async (e) => {
+    e.preventDefault();
+    if (!newNoteText.trim() || !selectedContact) return;
+
+    setActionLoading(true);
+    try {
+      const leadIdToUse = selectedContact.leadId?._id || selectedContact.leadId;
+      if (!leadIdToUse) {
+        showToast('⚠️ No lead associated with this contact to log interaction.', 'error');
+        setActionLoading(false);
+        return;
+      }
+
+      const res = await fetch(`/api/leads/${leadIdToUse}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: newNoteText }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setNewNoteText('');
+        // Reload contact to get updated notes
+        const refreshedRes = await fetch(`/api/contacts/${selectedContact._id}`);
+        if (refreshedRes.ok) {
+          const refreshedData = await refreshedRes.json();
+          setSelectedContact(refreshedData.contact);
+        }
+        showToast('📝 Note logged successfully!');
+      } else {
+        showToast(data.error || 'Failed to add note.', 'error');
+      }
+    } catch (err) {
+      console.error('Add contact note failed:', err);
+      showToast('Network error logging note.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // --- DYNAMIC UPLOAD ATTACHMENT ACTION ---
+  const handleUploadAttachment = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !selectedContact) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('⚠️ File size too large (Max 10MB limit).', 'error');
+      return;
+    }
+
+    const leadIdToUse = selectedContact.leadId?._id || selectedContact.leadId;
+    if (!leadIdToUse) {
+      showToast('⚠️ No lead associated with this contact to upload attachment.', 'error');
+      return;
+    }
+
+    setActionLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64Data = event.target.result;
+
+      try {
+        const res = await fetch(`/api/leads/${leadIdToUse}/attachments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileData: base64Data,
+            fileType: file.type,
+            fileSize: file.size,
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          const refreshedRes = await fetch(`/api/contacts/${selectedContact._id}`);
+          if (refreshedRes.ok) {
+            const refreshedData = await refreshedRes.json();
+            setSelectedContact(refreshedData.contact);
+          }
+          showToast('📁 Attachment uploaded successfully!');
+        } else {
+          showToast(data.error || 'Failed to upload attachment.', 'error');
+        }
+      } catch (err) {
+        showToast('Network error uploading attachment.', 'error');
+      } finally {
+        setActionLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  // --- DYNAMIC DOWNLOAD ATTACHMENT ACTION ---
+  const handleDownloadAttachment = (attachment) => {
+    try {
+      const link = document.createElement('a');
+      link.href = attachment.fileData;
+      link.download = attachment.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('📥 File downloaded successfully!');
+    } catch (err) {
+      showToast('Failed to download file.', 'error');
+    }
+  };
+
+  // --- DYNAMIC REMOVE ATTACHMENT ACTION ---
+  const handleRemoveAttachment = async (attachmentId) => {
+    if (!window.confirm('Remove this file attachment? This action will generate deletion logs.')) return;
+    setActionLoading(true);
+
+    try {
+      const leadIdToUse = selectedContact.leadId?._id || selectedContact.leadId;
+      if (!leadIdToUse) {
+        showToast('⚠️ No lead associated with this contact.', 'error');
+        setActionLoading(false);
+        return;
+      }
+
+      const res = await fetch(`/api/leads/${leadIdToUse}/attachments?attachmentId=${attachmentId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        const refreshedRes = await fetch(`/api/contacts/${selectedContact._id}`);
+        if (refreshedRes.ok) {
+          const refreshedData = await refreshedRes.json();
+          setSelectedContact(refreshedData.contact);
+        }
+        showToast('🗑️ File attachment removed.');
+      } else {
+        showToast(data.error || 'Failed to delete attachment.', 'error');
+      }
+    } catch (err) {
+      showToast('Network error removing attachment.', 'error');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -485,6 +698,8 @@ export default function ContactsPage() {
             <option value="">All Contact Statuses</option>
             <option value="Active">🟢 Active Customers</option>
             <option value="Inactive">🔴 Inactive Accounts</option>
+            <option value="Qualified">🎓 Qualified Accounts</option>
+            <option value="Lost">❌ Lost Accounts</option>
           </select>
         </div>
 
@@ -594,9 +809,11 @@ export default function ContactsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-block px-2.5 py-0.5 text-[8px] font-black rounded-full uppercase border ${
-                        contact.status === 'Active' 
+                        contact.status === 'Active' || contact.status === 'Qualified'
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                          : 'bg-rose-50 text-rose-700 border-rose-100'
+                          : contact.status === 'Lost' || contact.status === 'Inactive'
+                            ? 'bg-rose-50 text-rose-700 border-rose-100'
+                            : 'bg-slate-50 text-slate-700 border-slate-100'
                       }`}>
                         {contact.status}
                       </span>
@@ -689,11 +906,11 @@ export default function ContactsPage() {
                 <div>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block font-mono">Account Relations Status</span>
                   <span className={`inline-block px-2.5 py-0.5 text-[9px] font-extrabold rounded-full uppercase mt-1.5 ${
-                    selectedContact.status === 'Active' 
+                    selectedContact.status === 'Active' || selectedContact.status === 'Qualified'
                       ? 'bg-emerald-50 text-emerald-700' 
                       : 'bg-rose-50 text-rose-700'
                   }`}>
-                    {selectedContact.status} Customers
+                    {selectedContact.status} Customer
                   </span>
                 </div>
                 {selectedContact.whatsapp && !hiddenStandardFields.includes('contacts:whatsapp') && (
@@ -706,6 +923,88 @@ export default function ContactsPage() {
                   </button>
                 )}
               </div>
+
+              {/* Lifecycle status flow control Card */}
+              <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Lifecycle status flow</span>
+                  {!isEditingStatus ? (
+                    <button
+                      onClick={() => setIsEditingStatus(true)}
+                      className="text-[10px] text-emerald-600 font-extrabold hover:underline"
+                    >
+                      Change Status
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleUpdateStatus}
+                        className="text-[10px] text-emerald-600 font-extrabold hover:underline"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setIsEditingStatus(false)}
+                        className="text-[10px] text-slate-400 font-bold hover:underline"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {!isEditingStatus ? (
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-700 mt-1">
+                    <span>Current Status:</span>
+                    <span className="text-emerald-600">{selectedContact.status}</span>
+                  </div>
+                ) : (
+                  <div className="mt-1">
+                    <select
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value)}
+                      className="w-full px-2.5 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 focus:outline-none focus:border-emerald-500 transition"
+                    >
+                      <option value="Active">🟢 Active</option>
+                      <option value="Inactive">🔴 Inactive</option>
+                      <option value="Qualified">🎓 Qualified</option>
+                      <option value="Lost">❌ Lost</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Follow-up Alerts */}
+              {(() => {
+                const alert = selectedContact.nextFollowUpDate ? (() => {
+                  const today = new Date();
+                  const fDate = safeNewDate(selectedContact.nextFollowUpDate);
+                  const diffTime = fDate.getTime() - today.getTime();
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                  if (diffTime < 0) {
+                    return { text: `⚠️ OVERDUE follow-up! Was scheduled for ${fDate.toLocaleDateString('en-IN', { dateStyle: 'medium' })}`, type: 'overdue' };
+                  } else if (fDate.getDate() === today.getDate() && fDate.getMonth() === today.getMonth() && fDate.getFullYear() === today.getFullYear()) {
+                    return { text: `📅 Follow-up scheduled for TODAY at ${fDate.toLocaleTimeString('en-IN', { timeStyle: 'short' })}`, type: 'today' };
+                  } else {
+                    return { text: `📅 Next follow-up in ${diffDays} days (${fDate.toLocaleDateString('en-IN', { dateStyle: 'medium' })})`, type: 'future' };
+                  }
+                })() : null;
+
+                if (!alert || selectedContact.status === 'Lost') return null;
+
+                return (
+                  <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-bold shadow-sm ${
+                    alert.type === 'overdue' 
+                      ? 'bg-rose-50 border-rose-200 text-rose-800' 
+                      : alert.type === 'today'
+                        ? 'bg-amber-50 border-amber-200 text-amber-800'
+                        : 'bg-emerald-50 border-emerald-250 text-emerald-800'
+                  }`}>
+                    <Calendar className="h-5 w-5 shrink-0" />
+                    <span>{alert.text} (Mode: {selectedContact.followUpType || 'None'})</span>
+                  </div>
+                );
+              })()}
 
               {/* Contact Profile details */}
               <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-4">
@@ -755,6 +1054,26 @@ export default function ContactsPage() {
                   </div>
                 </div>
 
+                {/* Next Follow Up Date Info in profile */}
+                {selectedContact.nextFollowUpDate && (
+                  <div className="border-t border-slate-100 pt-3.5 grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Next Follow Up</span>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold mt-0.5">
+                        <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        <span>{safeNewDate(selectedContact.nextFollowUpDate).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Follow-up Mode</span>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold mt-0.5">
+                        <Tag className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        <span>{selectedContact.followUpType || 'None'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Lead reference info if converted */}
                 {selectedContact.leadId && (
                   <div className="border-t border-slate-100 pt-3.5">
@@ -783,6 +1102,121 @@ export default function ContactsPage() {
                   </div>
                 </div>
               )}
+
+              {/* PREMIUM FILE ATTACHMENTS BLOCK */}
+              <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Paperclip className="h-4 w-4 text-emerald-500" />
+                    Corporate File Attachments
+                  </h3>
+                  {selectedContact.leadId && (
+                    <button
+                      onClick={() => attachmentInputRef.current.click()}
+                      disabled={actionLoading}
+                      className="text-[10px] text-emerald-600 font-extrabold hover:underline"
+                    >
+                      Upload File
+                    </button>
+                  )}
+                  <input
+                    type="file"
+                    ref={attachmentInputRef}
+                    onChange={handleUploadAttachment}
+                    className="hidden"
+                  />
+                </div>
+                {(!selectedContact.attachments || selectedContact.attachments.length === 0) ? (
+                  <p className="text-xs text-slate-400 italic">No files attached yet.</p>
+                ) : (
+                  <div className="divide-y divide-slate-100 max-h-40 overflow-y-auto">
+                    {selectedContact.attachments.map((file) => (
+                      <div key={file._id} className="py-2.5 flex items-center justify-between text-xs group">
+                        <div className="flex items-center gap-2 truncate pr-4">
+                          <File className="h-4 w-4 text-slate-400 shrink-0" />
+                          <span className="font-semibold text-slate-700 truncate" title={file.fileName}>
+                            {file.fileName}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleDownloadAttachment(file)}
+                            className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800"
+                            title="Download File Attachment"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </button>
+                          {currentUser?.role !== 'sales_rep' && (
+                            <button
+                              onClick={() => handleRemoveAttachment(file._id)}
+                              className="p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600"
+                              title="Remove Attachment"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Follow-up Note Form */}
+              <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-4">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                  <MessageSquare className="h-4 w-4 text-emerald-500" />
+                  Log Client Interaction
+                </h3>
+                {selectedContact.leadId ? (
+                  <form onSubmit={handleAddNote} className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      placeholder="Write a comment or log a follow-up call..."
+                      value={newNoteText}
+                      onChange={(e) => setNewNoteText(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 placeholder-slate-400 shadow-sm transition"
+                    />
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+                    >
+                      {actionLoading ? <Loader2 className="h-4 w-4 animate-spin text-white" /> : 'Log'}
+                    </button>
+                  </form>
+                ) : (
+                  <p className="text-xs text-slate-450 italic">Notes cannot be logged (no lead_id).</p>
+                )}
+              </div>
+
+              {/* Follow-up History Timeline */}
+              <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm space-y-4">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                  <Clock className="h-4 w-4 text-emerald-500" />
+                  Interaction History
+                </h3>
+                {(!selectedContact.notes || selectedContact.notes.length === 0) ? (
+                  <p className="text-xs text-slate-400 italic">No activities logged yet.</p>
+                ) : (
+                  <div className="relative border-l border-slate-200 ml-3 pl-5 space-y-5 py-1">
+                    {selectedContact.notes.map((note) => (
+                      <div key={note._id || note.id} className="relative group">
+                        <div className="absolute -left-[26px] top-1.5 h-3.5 w-3.5 rounded-full bg-white border-2 border-emerald-500 flex items-center justify-center group-hover:scale-110 transition shadow-sm"></div>
+                        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 shadow-sm space-y-1">
+                          <p className="text-xs text-slate-700 font-bold leading-relaxed">{note.text}</p>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-1.5 border-t border-slate-100 font-semibold">
+                            <span className="text-slate-500">{note.createdByName}</span>
+                            <span>•</span>
+                            <span>{safeNewDate(note.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Admin delete card */}
               {currentUser?.role !== 'sales_rep' && (
@@ -1093,6 +1527,39 @@ export default function ContactsPage() {
                     >
                       <option value="Active">🟢 Active</option>
                       <option value="Inactive">🔴 Inactive</option>
+                      <option value="Qualified">🎓 Qualified</option>
+                      <option value="Lost">❌ Lost</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 6: Next Follow-up Tracker */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Next Follow-up Tracker</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Next Follow-up Date</label>
+                    <input
+                      type="datetime-local"
+                      value={nextFollowUpDate}
+                      onChange={(e) => setNextFollowUpDate(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Follow-up Type</label>
+                    <select
+                      value={followUpType}
+                      onChange={(e) => setFollowUpType(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 transition"
+                    >
+                      <option value="None">None</option>
+                      <option value="Call">📞 Call</option>
+                      <option value="Meeting">🤝 Meeting</option>
+                      <option value="Demo">💻 Demo</option>
+                      <option value="WhatsApp">💬 WhatsApp</option>
+                      <option value="Email">📧 Email</option>
                     </select>
                   </div>
                 </div>
@@ -1405,6 +1872,39 @@ export default function ContactsPage() {
                     >
                       <option value="Active">🟢 Active</option>
                       <option value="Inactive">🔴 Inactive</option>
+                      <option value="Qualified">🎓 Qualified</option>
+                      <option value="Lost">❌ Lost</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 6: Next Follow-up Tracker */}
+              <div className="space-y-4">
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Next Follow-up Tracker</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Next Follow-up Date</label>
+                    <input
+                      type="datetime-local"
+                      value={nextFollowUpDate}
+                      onChange={(e) => setNextFollowUpDate(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Follow-up Type</label>
+                    <select
+                      value={followUpType}
+                      onChange={(e) => setFollowUpType(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 transition"
+                    >
+                      <option value="None">None</option>
+                      <option value="Call">📞 Call</option>
+                      <option value="Meeting">🤝 Meeting</option>
+                      <option value="Demo">💻 Demo</option>
+                      <option value="WhatsApp">💬 WhatsApp</option>
+                      <option value="Email">📧 Email</option>
                     </select>
                   </div>
                 </div>

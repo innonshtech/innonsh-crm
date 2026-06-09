@@ -6,6 +6,99 @@ import { mapContactToFrontend } from '@/lib/dbMapper';
 import { getUserFromRequest } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 
+// GET /api/contacts/[id] - Fetch single customer contact profile details with validation
+export async function GET(req, { params }) {
+  try {
+    const decodedUser = getUserFromRequest(req);
+    const { id } = await params;
+
+    if (!decodedUser) {
+      return NextResponse.json({ error: 'Unauthorized. Please login.' }, { status: 401 });
+    }
+
+    if (supabase) {
+      // Query Supabase with nested leads relationship to pull notes/attachments
+      let query = supabase
+        .from('contacts')
+        .select('*, users!contacts_assigned_to_fkey(id, name, email, role), client_organizations(*), leads:leads!contacts_lead_id_fkey(id, lead_notes(*), lead_attachments(*))')
+        .eq('id', id);
+
+      if (decodedUser.orgId) {
+        query = query.eq('org_id', decodedUser.orgId);
+      }
+
+      const { data: contact, error: fetchError } = await query.maybeSingle();
+
+      if (fetchError) {
+        console.error('Supabase fetch single contact error:', fetchError);
+        throw fetchError;
+      }
+
+      if (!contact) {
+        return NextResponse.json({ error: 'Contact not found.' }, { status: 404 });
+      }
+
+      // SECURITY CHECK: Sales Rep can strictly only view their own assigned contacts
+      if (
+        decodedUser.role === 'sales_rep' &&
+        contact.assigned_to &&
+        contact.assigned_to !== decodedUser.id
+      ) {
+        return NextResponse.json(
+          { error: 'Forbidden. You do not have permission to view this contact.' },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json({ success: true, contact: mapContactToFrontend(contact) });
+    } else {
+      // Fallback to MongoDB
+      await connectToDatabase();
+
+      const contact = await Contact.findById(id)
+        .populate('organizationId')
+        .populate('assignedTo', 'name email role')
+        .populate({
+          path: 'leadId',
+          populate: [
+            { path: 'notes' },
+            { path: 'attachments' }
+          ]
+        });
+
+      if (!contact) {
+        return NextResponse.json({ error: 'Contact not found.' }, { status: 404 });
+      }
+
+      // SECURITY CHECK: Sales Rep can strictly only view their own assigned contacts
+      if (
+        decodedUser.role === 'sales_rep' &&
+        contact.assignedTo &&
+        contact.assignedTo.toString() !== decodedUser.id
+      ) {
+        return NextResponse.json(
+          { error: 'Forbidden. You do not have permission to view this contact.' },
+          { status: 403 }
+        );
+      }
+
+      const contactObj = contact.toObject();
+      if (contactObj.leadId) {
+        contactObj.notes = contactObj.leadId.notes || [];
+        contactObj.attachments = contactObj.leadId.attachments || [];
+      }
+
+      return NextResponse.json({ success: true, contact: mapContactToFrontend(contactObj) });
+    }
+  } catch (error) {
+    console.error('Fetch contact details error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error while fetching contact details.' },
+      { status: 500 }
+    );
+  }
+}
+
 // PUT /api/contacts/[id] - Update Contact profile details
 export async function PUT(req, { params }) {
   try {
@@ -60,7 +153,9 @@ export async function PUT(req, { params }) {
         assignedTo,
         organizationId,
         status,
-        customData
+        customData,
+        nextFollowUpDate,
+        followUpType
       } = body;
 
       // Validate firstName
@@ -115,6 +210,8 @@ export async function PUT(req, { params }) {
       if (country !== undefined) updates.country = country.trim();
       if (status !== undefined) updates.status = status;
       if (customData !== undefined) updates.custom_data = customData;
+      if (nextFollowUpDate !== undefined) updates.next_follow_up_date = nextFollowUpDate ? new Date(nextFollowUpDate).toISOString() : null;
+      if (followUpType !== undefined) updates.follow_up_type = followUpType || 'None';
 
       // Allow Admin/Manager to change assignee
       if (decodedUser.role !== 'sales_rep' && assignedTo !== undefined) {
@@ -215,7 +312,9 @@ export async function PUT(req, { params }) {
         country,
         assignedTo,
         organizationId,
-        status
+        status,
+        nextFollowUpDate,
+        followUpType
       } = body;
 
       // Validate firstName
@@ -263,6 +362,8 @@ export async function PUT(req, { params }) {
       if (state !== undefined) contact.state = state.trim();
       if (country !== undefined) contact.country = country.trim();
       if (status !== undefined) contact.status = status;
+      if (nextFollowUpDate !== undefined) contact.nextFollowUpDate = nextFollowUpDate ? new Date(nextFollowUpDate) : null;
+      if (followUpType !== undefined) contact.followUpType = followUpType || 'None';
 
       // Allow Admin/Manager to change assignee
       if (decodedUser.role !== 'sales_rep' && assignedTo !== undefined) {
@@ -356,6 +457,17 @@ export async function DELETE(req, { params }) {
         return NextResponse.json({ error: 'Customer contact profile not found.' }, { status: 404 });
       }
 
+      // Revert associated lead status to 'New' so self-healing doesn't recreate it
+      if (contact.lead_id) {
+        const { error: leadUpdateError } = await supabase
+          .from('leads')
+          .update({ status: 'New' })
+          .eq('id', contact.lead_id);
+        if (leadUpdateError) {
+          console.error('Failed to revert lead status on contact delete:', leadUpdateError);
+        }
+      }
+
       let deleteQuery = supabase.from('contacts').delete().eq('id', id);
       if (decodedUser.orgId) {
         deleteQuery = deleteQuery.eq('org_id', decodedUser.orgId);
@@ -375,11 +487,17 @@ export async function DELETE(req, { params }) {
     } else {
       await connectToDatabase();
 
-      const deletedContact = await Contact.findByIdAndDelete(id);
+      const contact = await Contact.findById(id);
 
-      if (!deletedContact) {
+      if (!contact) {
         return NextResponse.json({ error: 'Customer contact profile not found.' }, { status: 404 });
       }
+
+      if (contact.leadId) {
+        await Lead.findByIdAndUpdate(contact.leadId, { status: 'New' });
+      }
+
+      await Contact.findByIdAndDelete(id);
 
       return NextResponse.json({
         success: true,
