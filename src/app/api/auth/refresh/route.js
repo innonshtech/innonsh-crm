@@ -87,6 +87,26 @@ export async function POST(req) {
         return NextResponse.json({ error: 'User is inactive or deleted.' }, { status: 401 });
       }
 
+      let userEnabledModules = ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'analytics', 'users', 'roles', 'teams', 'real-estate'];
+
+      // Fetch organization details to get enabled modules
+      if (user.org_id && !user.is_super_admin) {
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .select('enabled_modules')
+          .eq('id', user.org_id)
+          .maybeSingle();
+        if (orgError) {
+          console.error('Supabase organization fetch error in refresh:', orgError);
+        } else if (orgData) {
+          userEnabledModules = orgData.enabled_modules || [];
+        }
+      }
+
+      if (user.is_super_admin && !userEnabledModules.includes('real-estate')) {
+        userEnabledModules.push('real-estate');
+      }
+
       // 3. Issue new short-lived access token and rotated refresh token
       const sessionToken = signToken({
         id: user.id,
@@ -95,6 +115,7 @@ export async function POST(req) {
         role: user.role,
         orgId: user.org_id,
         isSuperAdmin: user.is_super_admin || user.role === 'superadmin',
+        enabledModules: userEnabledModules,
       });
 
       const newRefreshToken = signRefreshToken({ id: user.id });
