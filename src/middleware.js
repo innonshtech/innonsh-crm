@@ -16,9 +16,12 @@ export async function middleware(req) {
   const isWebhook = pathname.startsWith('/api/webhooks/');
   const allowedOrigins = [];
   if (process.env.APP_URL) {
-    allowedOrigins.push(process.env.APP_URL);
+    allowedOrigins.push(process.env.APP_URL.trim().replace(/\/$/, ''));
   }
   allowedOrigins.push('http://localhost:3000', 'http://localhost:5000');
+  if (req.nextUrl?.origin) {
+    allowedOrigins.push(req.nextUrl.origin.trim().replace(/\/$/, ''));
+  }
 
   // Handle CORS preflight OPTIONS request
   if (isApi && req.method === 'OPTIONS') {
