@@ -191,7 +191,7 @@ export async function POST(req) {
       value: sessionToken,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 15 * 60, // 15 minutes
       path: '/',
     });
@@ -202,7 +202,7 @@ export async function POST(req) {
       value: refreshToken,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
       path: '/api/auth/refresh',
     });

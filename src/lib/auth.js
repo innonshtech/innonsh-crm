@@ -80,10 +80,11 @@ export function getUserFromRequest(req) {
     } else {
       // 2. Check HTTP-only cookies
       const cookieHeader = req.headers.get('cookie') || '';
-      const cookies = Object.fromEntries(
-        cookieHeader.split(';').map((c) => c.trim().split('='))
-      );
-      const token = cookies['token'];
+      const tokenCookie = cookieHeader
+        .split(';')
+        .map((c) => c.trim())
+        .find((c) => c.startsWith('token='));
+      const token = tokenCookie ? tokenCookie.substring('token='.length) : null;
 
       if (token) {
         decoded = verifyToken(token);
