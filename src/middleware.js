@@ -16,12 +16,9 @@ export async function middleware(req) {
   const isWebhook = pathname.startsWith('/api/webhooks/');
   const allowedOrigins = [];
   if (process.env.APP_URL) {
-    allowedOrigins.push(process.env.APP_URL.trim().replace(/\/$/, ''));
+    allowedOrigins.push(process.env.APP_URL);
   }
   allowedOrigins.push('http://localhost:3000', 'http://localhost:5000');
-  if (req.nextUrl?.origin) {
-    allowedOrigins.push(req.nextUrl.origin.trim().replace(/\/$/, ''));
-  }
 
   // Handle CORS preflight OPTIONS request
   if (isApi && req.method === 'OPTIONS') {
@@ -57,7 +54,7 @@ async function handleMiddlewareLogic(req) {
 
   // We only want to protect API routes for now
   if (pathname.startsWith('/api/')) {
-    
+
     // --- Rate Limiting ---
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
     const now = Date.now();
