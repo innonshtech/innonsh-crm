@@ -24,6 +24,8 @@ const envSchema = z.object({
   // Supabase
   NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().optional(),
+  // Server-only: service role key — bypasses RLS, must NEVER be exposed to the browser
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   
   // Other
   WEBSITE_API_KEY: z.string().optional(),

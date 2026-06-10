@@ -2,19 +2,18 @@ import connectToDatabase from '@/lib/db';
 import User from '@/lib/models/User';
 import { supabase } from '@/lib/supabaseClient';
 import { mapUserToFrontend } from '@/lib/dbMapper';
-import { comparePassword, signToken } from '@/lib/auth';
+import { comparePassword, signToken, signRefreshToken } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { schemas, validate } from '@/lib/validators';
 
 export async function POST(req) {
   try {
-    const { email, password } = await req.json();
-
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
+    const body = await req.json();
+    const parsed = validate(schemas.login, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
+    const { email, password } = parsed.data;
 
     let user = null;
     let userId = null;
@@ -134,7 +133,7 @@ export async function POST(req) {
       );
     }
 
-    // 3. Create session token (JWT)
+    // 3. Create session token (JWT) and refresh token
     if (userIsSuperAdmin && !userEnabledModules.includes('real-estate')) {
       userEnabledModules.push('real-estate');
     }
@@ -148,7 +147,29 @@ export async function POST(req) {
       enabledModules: userEnabledModules,
     });
 
-    // 4. Create response and set cookie
+    const refreshToken = signRefreshToken({ id: userId });
+
+    // Extract IP and User Agent
+    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
+    const userAgent = req.headers.get('user-agent') || '';
+
+    // Insert active session in Supabase database
+    if (supabase) {
+      const { error: sessionError } = await supabase
+        .from('active_sessions')
+        .insert([{
+          user_id: userId,
+          refresh_token: refreshToken,
+          ip_address: ip.split(',')[0].trim(),
+          user_agent: userAgent,
+          is_revoked: false
+        }]);
+      if (sessionError) {
+        console.error('Supabase session insert error:', sessionError);
+      }
+    }
+
+    // 4. Create response and set cookies
     const response = NextResponse.json({
       success: true,
       message: 'Login successful',
@@ -164,15 +185,26 @@ export async function POST(req) {
       },
     });
 
-    // Save token as HTTP-Only cookie, valid for 7 days
+    // Save access token as HTTP-Only cookie, valid for 15 minutes
     response.cookies.set({
       name: 'token',
       value: sessionToken,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
+      maxAge: 15 * 60, // 15 minutes
       path: '/',
+    });
+
+    // Save refresh token as HTTP-Only cookie, valid for 7 days
+    response.cookies.set({
+      name: 'refresh_token',
+      value: refreshToken,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
+      path: '/api/auth/refresh',
     });
 
     return response;

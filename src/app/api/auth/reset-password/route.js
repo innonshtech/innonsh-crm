@@ -3,21 +3,25 @@ import User from '@/lib/models/User';
 import { supabase } from '@/lib/supabaseClient';
 import { hashPassword } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import { schemas, validate } from '@/lib/validators';
+import { z } from 'zod';
+
+const resetPasswordOtpSchema = z.object({
+  email: z.string().email().max(254).transform((v) => v.toLowerCase().trim()),
+  otpCode: z.string().regex(/^\d{6}$/, { message: 'Verification code must be a 6-digit number.' }),
+  newPassword: z.string().min(8, { message: 'Password must be at least 8 characters long.' }).max(128),
+});
 
 export async function POST(req) {
   try {
-    const { email, otpCode, newPassword } = await req.json();
-
-    if (!email || !otpCode || !newPassword) {
-      return NextResponse.json({ error: 'Email, verification code, and new password are required fields.' }, { status: 400 });
+    const body = await req.json();
+    const parsed = validate(resetPasswordOtpSchema, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanOtp = otpCode.trim();
-
-    if (newPassword.length < 6) {
-      return NextResponse.json({ error: 'Security password must be at least 6 characters long.' }, { status: 400 });
-    }
+    const { email, otpCode, newPassword } = parsed.data;
+    const cleanEmail = email;    // already sanitized
+    const cleanOtp = otpCode;    // validated as 6 digits
 
     let user = null;
     let userId = null;

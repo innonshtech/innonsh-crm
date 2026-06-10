@@ -7,6 +7,7 @@ import { mapLeadToFrontend } from '@/lib/dbMapper';
 import { getUserFromRequest, checkModuleAccess } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { ensureContactForLead } from '@/lib/contactAutomation';
+import { schemas, validate } from '@/lib/validators';
 
 // GET /api/leads - Fetch lead list with strict role-based access control & dynamic filters
 export async function GET(req) {
@@ -269,7 +270,12 @@ export async function POST(req) {
       );
     }
 
-    const body = await req.json();
+    const rawBody = await req.json();
+    const parsed = validate(schemas.createLead, rawBody);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+    const body = { ...rawBody, ...parsed.data }; // merge sanitized values
     const {
       firstName,
       lastName,

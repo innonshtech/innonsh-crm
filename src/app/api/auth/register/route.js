@@ -5,29 +5,24 @@ import { supabase } from '@/lib/supabaseClient';
 import { hashPassword } from '@/lib/auth';
 import { sendEmail } from '@/lib/mailer';
 import { NextResponse } from 'next/server';
+import { schemas, validate } from '@/lib/validators';
 
 
 // POST /api/auth/register - Self-signup endpoint for Sales Executives (requires Manager approval)
 export async function POST(req) {
   try {
-    const { companyName, name, email, password, sector } = await req.json();
-
-    if (!companyName || !name || !email || !password) {
-      return NextResponse.json({ error: 'Company name, name, email, and password are required fields.' }, { status: 400 });
+    const body = await req.json();
+    const parsed = validate(schemas.register, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
+    const { companyName, name, email, password, sector } = parsed.data;
 
-    if (!email.includes('@')) {
-      return NextResponse.json({ error: 'Invalid email address syntax.' }, { status: 400 });
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Security password must be at least 6 characters long.' }, { status: 400 });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanName = name.trim();
-    const cleanCompanyName = companyName.trim();
+    const cleanEmail = email; // already trimmed+lowercased by Zod transform
+    const cleanName = name;   // already trimmed by Zod transform
+    const cleanCompanyName = companyName; // already trimmed by Zod transform
     const hashedPassword = await hashPassword(password);
+
 
     let newUser = null;
     let userId = null;

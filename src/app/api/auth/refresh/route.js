@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-import { signToken } from '@/lib/auth';
+import { signToken, signRefreshToken } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
@@ -13,8 +13,11 @@ export async function POST(req) {
       return NextResponse.json({ error: 'No refresh token provided.' }, { status: 401 });
     }
 
-    // 1. Verify the JWT structure of the refresh token
-    const secret = new TextEncoder().encode(process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+    const jwtSecret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('FATAL: JWT_REFRESH_SECRET or JWT_SECRET environment variable is missing!');
+    }
+    const secret = new TextEncoder().encode(jwtSecret);
     let payload;
     try {
       const verified = await jwtVerify(refreshToken, secret);
@@ -31,18 +34,42 @@ export async function POST(req) {
         .from('active_sessions')
         .select('*')
         .eq('refresh_token', refreshToken)
-        .eq('is_revoked', false)
         .maybeSingle();
 
       if (error || !session) {
         return NextResponse.json({ error: 'Session has been revoked or does not exist.' }, { status: 401 });
       }
 
-      // Update last active time
-      await supabase
-        .from('active_sessions')
-        .update({ last_active_at: new Date().toISOString() })
-        .eq('id', session.id);
+      // Reuse detection: If the session found is already revoked, it implies token reuse!
+      if (session.is_revoked) {
+        console.warn(`⚠️ Security Breach Alert: Reused refresh token detected for user ${userId}. Revoking all active sessions.`);
+        
+        // Revoke all user sessions
+        await supabase
+          .from('active_sessions')
+          .update({ is_revoked: true })
+          .eq('user_id', userId);
+
+        const response = NextResponse.json({ error: 'Security breach detected. Sessions terminated.' }, { status: 401 });
+        
+        // Clear cookies
+        response.cookies.set({
+          name: 'token',
+          value: '',
+          httpOnly: true,
+          expires: new Date(0),
+          path: '/',
+        });
+        response.cookies.set({
+          name: 'refresh_token',
+          value: '',
+          httpOnly: true,
+          expires: new Date(0),
+          path: '/api/auth/refresh',
+        });
+
+        return response;
+      }
 
       // Fetch latest user info to bake into new access token
       const { data: user } = await supabase
@@ -52,10 +79,15 @@ export async function POST(req) {
         .single();
 
       if (!user || !user.is_active) {
+        // Revoke this session too
+        await supabase
+          .from('active_sessions')
+          .update({ is_revoked: true })
+          .eq('id', session.id);
         return NextResponse.json({ error: 'User is inactive or deleted.' }, { status: 401 });
       }
 
-      // 3. Issue new short-lived access token
+      // 3. Issue new short-lived access token and rotated refresh token
       const sessionToken = signToken({
         id: user.id,
         name: user.name,
@@ -64,6 +96,22 @@ export async function POST(req) {
         orgId: user.org_id,
         isSuperAdmin: user.is_super_admin || user.role === 'superadmin',
       });
+
+      const newRefreshToken = signRefreshToken({ id: user.id });
+
+      // Rotate token in the database
+      const { error: rotateError } = await supabase
+        .from('active_sessions')
+        .update({
+          refresh_token: newRefreshToken,
+          last_active_at: new Date().toISOString()
+        })
+        .eq('id', session.id);
+
+      if (rotateError) {
+        console.error('Failed to rotate refresh token in database:', rotateError);
+        throw rotateError;
+      }
 
       const response = NextResponse.json({ success: true, message: 'Token refreshed successfully.' });
 
@@ -75,6 +123,16 @@ export async function POST(req) {
         sameSite: 'strict',
         maxAge: 15 * 60, // 15 minutes
         path: '/',
+      });
+
+      response.cookies.set({
+        name: 'refresh_token',
+        value: newRefreshToken,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
+        path: '/api/auth/refresh',
       });
 
       return response;

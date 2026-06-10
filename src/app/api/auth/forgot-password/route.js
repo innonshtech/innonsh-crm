@@ -3,20 +3,17 @@ import User from '@/lib/models/User';
 import { supabase } from '@/lib/supabaseClient';
 import { sendEmail } from '@/lib/mailer';
 import { NextResponse } from 'next/server';
+import { schemas, validate } from '@/lib/validators';
 
 export async function POST(req) {
   try {
-    const { email } = await req.json();
-
-    if (!email) {
-      return NextResponse.json({ error: 'Email address is required.' }, { status: 400 });
+    const body = await req.json();
+    const parsed = validate(schemas.forgotPassword, body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
-
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanEmail.includes('@')) {
-      return NextResponse.json({ error: 'Invalid email address syntax.' }, { status: 400 });
-    }
+    const { email } = parsed.data;
+    const cleanEmail = email; // already sanitized by Zod transform
 
     let user = null;
 

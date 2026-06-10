@@ -1,3 +1,4 @@
+import "@/lib/env";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 

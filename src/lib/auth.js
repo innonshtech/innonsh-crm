@@ -1,7 +1,11 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_crm_jwt_secret_token';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET environment variable is missing!');
+}
 
 /**
  * Hash a plain text password using bcrypt
@@ -30,7 +34,19 @@ export async function comparePassword(password, hashedPassword) {
  */
 export function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: '7d', // Session valid for 7 days
+    expiresIn: '15m', // Session valid for 15 minutes
+  });
+}
+
+/**
+ * Sign a new JWT refresh token
+ * @param {object} payload - user data like id
+ * @returns {string} signed JWT refresh token
+ */
+export function signRefreshToken(payload) {
+  const refreshSecret = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
+  return jwt.sign({ id: payload.id }, refreshSecret, {
+    expiresIn: '7d', // Refresh token valid for 7 days
   });
 }
 

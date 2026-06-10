@@ -11,6 +11,50 @@ const rateLimitMap = new Map();
 export async function middleware(req) {
   const { pathname } = req.nextUrl;
 
+  const origin = req.headers.get('origin');
+  const isApi = pathname.startsWith('/api/');
+  const isWebhook = pathname.startsWith('/api/webhooks/');
+  const allowedOrigins = [];
+  if (process.env.APP_URL) {
+    allowedOrigins.push(process.env.APP_URL.trim().replace(/\/$/, ''));
+  }
+  allowedOrigins.push('http://localhost:3000', 'http://localhost:5000');
+  if (req.nextUrl?.origin) {
+    allowedOrigins.push(req.nextUrl.origin.trim().replace(/\/$/, ''));
+  }
+
+  // Handle CORS preflight OPTIONS request
+  if (isApi && req.method === 'OPTIONS') {
+    const response = new NextResponse(null, { status: 204 });
+    if (origin && (allowedOrigins.includes(origin) || isWebhook)) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-requested-with');
+    }
+    return response;
+  }
+
+  // Handle CORS blocked origin checks for actual requests
+  if (isApi && origin && !isWebhook && !allowedOrigins.includes(origin)) {
+    return NextResponse.json({ error: 'CORS Blocked: Access Denied' }, { status: 403 });
+  }
+
+  // Define actual middleware flow logic
+  const response = await handleMiddlewareLogic(req);
+
+  // Append CORS headers on successful/error api responses
+  if (isApi && origin && (allowedOrigins.includes(origin) || isWebhook)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+  }
+
+  return response;
+}
+
+async function handleMiddlewareLogic(req) {
+  const { pathname } = req.nextUrl;
+
   // We only want to protect API routes for now
   if (pathname.startsWith('/api/')) {
     
@@ -49,7 +93,11 @@ export async function middleware(req) {
     }
 
     try {
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_crm_jwt_secret_token');
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        throw new Error('FATAL: JWT_SECRET environment variable is missing!');
+      }
+      const secret = new TextEncoder().encode(jwtSecret);
       const { payload } = await jwtVerify(token, secret);
 
       // Example of central RBAC: if route is /api/admin/*, only owner/admin can access
