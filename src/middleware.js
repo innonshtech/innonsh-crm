@@ -57,13 +57,29 @@ async function handleMiddlewareLogic(req) {
 
   // We only want to protect API routes for now
   if (pathname.startsWith('/api/')) {
+    
+    // Clean any client-sent x-user- headers to prevent spoofing
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.delete('x-user-id');
+    requestHeaders.delete('x-user-role');
+    requestHeaders.delete('x-user-email');
+    requestHeaders.delete('x-user-org-id');
+    requestHeaders.delete('x-user-is-super-admin');
+    requestHeaders.delete('x-user-enabled-modules');
 
     // --- Rate Limiting ---
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
     const now = Date.now();
     const windowMs = 60000; // 1 minute
     const isDev = process.env.NODE_ENV === 'development';
-    const maxRequests = isDev ? 1000 : (pathname.startsWith('/api/auth/') ? 5 : 60); // Stricter for Auth, increased for Dev
+    
+    // Only apply strict limit (5 req/min) to authentication-critical public routes (login, register, forgot/reset password).
+    // Do NOT strictly rate limit session status checks (/api/auth/me) or logouts (/api/auth/logout).
+    const isStrictAuthRoute = pathname.startsWith('/api/auth/') && 
+                              pathname !== '/api/auth/me' && 
+                              pathname !== '/api/auth/logout';
+                              
+    const maxRequests = isDev ? 1000 : (isStrictAuthRoute ? 5 : 60);
 
     const tokenData = rateLimitMap.get(ip) || { count: 0, startTime: now };
 
@@ -83,7 +99,11 @@ async function handleMiddlewareLogic(req) {
 
     // Exclude public API routes
     if (publicRoutes.includes(pathname)) {
-      return NextResponse.next();
+      return NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
     }
 
     const token = req.cookies.get('token')?.value || req.headers.get('authorization')?.split(' ')[1];
@@ -107,10 +127,13 @@ async function handleMiddlewareLogic(req) {
         }
       }
 
-      // Add decoded user to headers so API routes can access it without re-verifying
-      const requestHeaders = new Headers(req.headers);
-      requestHeaders.set('x-user-id', payload.id);
-      requestHeaders.set('x-user-role', payload.role);
+      // Add decoded user details to headers so API routes can access them without re-verifying
+      requestHeaders.set('x-user-id', payload.id || '');
+      requestHeaders.set('x-user-role', payload.role || '');
+      requestHeaders.set('x-user-email', payload.email || '');
+      requestHeaders.set('x-user-org-id', payload.orgId || '');
+      requestHeaders.set('x-user-is-super-admin', payload.isSuperAdmin ? 'true' : 'false');
+      requestHeaders.set('x-user-enabled-modules', Array.isArray(payload.enabledModules) ? payload.enabledModules.join(',') : '');
 
       return NextResponse.next({
         request: {

@@ -70,6 +70,32 @@ export function verifyToken(token) {
  */
 export function getUserFromRequest(req) {
   try {
+    // 0. Check if headers set by middleware are present
+    const headerUserId = req.headers.get('x-user-id');
+    if (headerUserId) {
+      const isSuperAdminVal = req.headers.get('x-user-is-super-admin') === 'true';
+      const orgIdVal = req.headers.get('x-user-org-id') || null;
+      const emailVal = req.headers.get('x-user-email') || '';
+      const roleVal = req.headers.get('x-user-role') || '';
+      const enabledModulesVal = req.headers.get('x-user-enabled-modules');
+
+      const decoded = {
+        id: headerUserId,
+        role: roleVal,
+        email: emailVal,
+        orgId: orgIdVal,
+        isSuperAdmin: isSuperAdminVal,
+        enabledModules: enabledModulesVal ? enabledModulesVal.split(',') : []
+      };
+
+      // STRICT MULTI-TENANT ISOLATION GATING:
+      if (!decoded.isSuperAdmin && !decoded.orgId) {
+        console.warn(`⚠️ Security Alert: Rejected legacy token without orgId for user ${decoded.email}`);
+        return null;
+      }
+      return decoded;
+    }
+
     let decoded = null;
 
     // 1. Check Authorization Header (Bearer token)
@@ -78,13 +104,24 @@ export function getUserFromRequest(req) {
       const token = authHeader.split(' ')[1];
       decoded = verifyToken(token);
     } else {
-      // 2. Check HTTP-only cookies
-      const cookieHeader = req.headers.get('cookie') || '';
-      const tokenCookie = cookieHeader
-        .split(';')
-        .map((c) => c.trim())
-        .find((c) => c.startsWith('token='));
-      const token = tokenCookie ? tokenCookie.substring('token='.length) : null;
+      // 2. Check HTTP-only cookies using native Next.js API or manual fallback
+      let token = null;
+      if (req.cookies) {
+        if (typeof req.cookies.get === 'function') {
+          token = req.cookies.get('token')?.value;
+        } else if (typeof req.cookies === 'object') {
+          token = req.cookies.token || req.cookies['token'];
+        }
+      }
+
+      if (!token) {
+        const cookieHeader = req.headers.get('cookie') || req.headers.get('Cookie') || '';
+        const tokenCookie = cookieHeader
+          .split(';')
+          .map((c) => c.trim())
+          .find((c) => c.startsWith('token='));
+        token = tokenCookie ? tokenCookie.substring('token='.length) : null;
+      }
 
       if (token) {
         decoded = verifyToken(token);
