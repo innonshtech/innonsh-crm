@@ -107,6 +107,7 @@ export default function DashboardLayout({ children }) {
     '/dashboard/client-organizations': 'contacts',
     '/dashboard/deals': 'deals',
     '/dashboard/emails': 'emails',
+    '/dashboard/product-leads': 'leads',
     '/dashboard/tasks': 'tasks',
     '/dashboard/calls': 'calls',
     '/dashboard/meetings': 'meetings',
@@ -335,6 +336,7 @@ export default function DashboardLayout({ children }) {
         { name: 'Client Organizations', href: '/dashboard/client-organizations', icon: Building2 },
         { name: 'Deals Pipeline', href: '/dashboard/deals', icon: Briefcase },
         { name: 'Email Hub', href: '/dashboard/emails', icon: Mail },
+        { name: 'Product Leads', href: '/dashboard/product-leads', icon: Package },
       ]
     },
     {
@@ -444,6 +446,7 @@ export default function DashboardLayout({ children }) {
             'Client Organizations',
             'Deals Pipeline',
             'Email Hub',
+            'Product Leads',
             'Tasks',
             'Calls',
             'Meetings',
@@ -484,6 +487,7 @@ export default function DashboardLayout({ children }) {
             'Client Organizations',
             'Deals Pipeline',
             'Email Hub',
+            'Product Leads',
             'Tasks',
             'Calls',
             'Meetings',
