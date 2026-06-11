@@ -2,7 +2,14 @@ import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
 // Define public routes that don't require authentication
-const publicRoutes = ['/api/auth/login', '/api/auth/forgot-password', '/api/auth/reset-password', '/api/auth/register', '/api/auth/seed'];
+const publicRoutes = [
+  '/api/auth/login', 
+  '/api/auth/forgot-password', 
+  '/api/auth/reset-password', 
+  '/api/auth/register', 
+  '/api/auth/seed',
+  '/api/leads/website'
+];
 
 // Simple edge-compatible rate limiter (using a Map)
 // Note: In Serverless/Edge, this state is isolated per instance.
@@ -97,8 +104,8 @@ async function handleMiddlewareLogic(req) {
     }
     // ---------------------
 
-    // Exclude public API routes
-    if (publicRoutes.includes(pathname)) {
+    // Exclude public API routes and webhook endpoints
+    if (publicRoutes.includes(pathname) || pathname.startsWith('/api/webhooks/')) {
       return NextResponse.next({
         request: {
           headers: requestHeaders,

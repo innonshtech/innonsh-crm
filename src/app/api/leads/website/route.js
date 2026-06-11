@@ -31,10 +31,25 @@ export async function POST(req) {
     const empCountNum = employeeCount ? parseInt(employeeCount.split('-')[0].replace(/,/g, '').replace('+', '')) || 0 : 0;
     const reqText = message ? `Requested Service: ${service || 'N/A'}\n\nEmployee Count: ${employeeCount || 'N/A'}\n\nMessage: ${message}` : `Requested Service: ${service || 'N/A'}\nEmployee Count: ${employeeCount || 'N/A'}`;
 
-    let leadId = null;
+    // 4. Fetch the main organization ID (associated with the owner user)
+    let orgId = null;
+    const { data: ownerUser } = await supabase
+      .from('users')
+      .select('org_id')
+      .eq('role', 'owner')
+      .limit(1)
+      .maybeSingle();
 
-    if (!supabase) {
-      throw new Error("Supabase client is not initialized.");
+    if (ownerUser && ownerUser.org_id) {
+      orgId = ownerUser.org_id;
+    } else {
+      // Fallback to the first organization in the database
+      const { data: firstOrg } = await supabase
+        .from('organizations')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+      if (firstOrg) orgId = firstOrg.id;
     }
 
     const { data, error } = await supabase.from('leads').insert([{
@@ -48,7 +63,8 @@ export async function POST(req) {
       employee_count: empCountNum,
       source: 'Website',
       status: 'New',
-      priority: 'Hot'
+      priority: 'Hot',
+      org_id: orgId
     }]).select('id').single();
 
     if (error) {
@@ -56,7 +72,7 @@ export async function POST(req) {
       throw error;
     }
     
-    leadId = data.id;
+    const leadId = data.id;
 
     // Add timeline note
     await supabase.from('lead_notes').insert([{
