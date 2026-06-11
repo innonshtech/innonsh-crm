@@ -57,6 +57,8 @@ export async function POST(req) {
           name: 'token',
           value: '',
           httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
           expires: new Date(0),
           path: '/',
         });
@@ -64,6 +66,8 @@ export async function POST(req) {
           name: 'refresh_token',
           value: '',
           httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
           expires: new Date(0),
           path: '/api/auth/refresh',
         });
