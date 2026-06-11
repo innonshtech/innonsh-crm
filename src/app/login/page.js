@@ -11,7 +11,9 @@ import {
   ArrowRight, 
   CheckCircle2, 
   ShieldCheck,
-  UserPlus
+  UserPlus,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -23,6 +25,7 @@ export default function LoginPage() {
   // Login Form States
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
   // Register Form States
   const [companyName, setCompanyName] = useState('');
@@ -62,6 +65,7 @@ export default function LoginPage() {
     setForgotOtp('');
     setForgotPassword('');
     setForgotConfirmPassword('');
+    setShowPassword(false);
   };
 
   const handleForgotPasswordRequest = async (e) => {
@@ -362,13 +366,24 @@ export default function LoginPage() {
                     <Lock className="h-4 w-4" />
                   </span>
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     required
                     placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 hover:border-slate-350 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition text-xs text-slate-850 placeholder-slate-400"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-lg bg-slate-50/50 border border-slate-200 hover:border-slate-350 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none transition text-xs text-slate-850 placeholder-slate-400"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-405 hover:text-slate-600 transition cursor-pointer"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
               </div>
 
@@ -410,7 +425,7 @@ export default function LoginPage() {
                   <div className="space-y-1">
                     <h2 className="text-sm font-bold text-slate-800 tracking-tight">Forgot Password</h2>
                     <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
-                      Enter your registered email address below. We'll send you a 6-digit OTP verification code to securely change your password.
+                      Enter your registered email address below. We&apos;ll send you a 6-digit OTP verification code to securely change your password.
                     </p>
                   </div>
 
