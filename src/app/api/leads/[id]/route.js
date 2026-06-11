@@ -300,6 +300,7 @@ export async function PUT(req, { params }) {
       updates.status = targetStatus;
       updates.lost_reason = targetStatus === 'Lost' ? targetLostReason : '';
       updates.assigned_to = finalAssignee;
+      updates.updated_at = new Date().toISOString();
 
       if (isPublic !== undefined) {
         if (decodedUser.role === 'owner') {

@@ -785,6 +785,18 @@ export default function LeadsPage() {
   // Inactive Lead Checker (7 days inactivity)
   const isInactiveLead = (lead) => {
     if (lead.status === 'Qualified' || lead.status === 'Lost') return false;
+    
+    // If a future or today's follow-up is scheduled, lead is not inactive
+    if (lead.nextFollowUpDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const followUp = safeNewDate(lead.nextFollowUpDate);
+      followUp.setHours(0, 0, 0, 0);
+      if (followUp >= today) {
+        return false;
+      }
+    }
+
     const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
     const lastUpdate = safeNewDate(lead.updatedAt).getTime();
     // eslint-disable-next-line react-hooks/purity
