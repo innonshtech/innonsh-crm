@@ -237,7 +237,7 @@ export async function POST(req) {
                 priority: 'Warm',
                 status: 'New',
                 lost_reason: '',
-                source: 'Meta Ads',
+                source: 'Social Media',
                 requirements: `Form Name/ID: ${formId || 'N/A'}\nMeta Lead ID: ${leadgenId}`,
                 interested_product: '',
                 follow_up_type: 'None',
