@@ -54,7 +54,22 @@ export default function DashboardSummaryPage() {
     pendingInvoices: 0,
     overdueInvoices: 0,
     
-    conversionRate: 0
+    conversionRate: 0,
+
+    // Charts dynamic metrics
+    pipelineStages: {
+      'Qualification': 0,
+      'Proposal': 0,
+      'Negotiation': 0,
+      'Won': 0,
+      'Lost': 0
+    },
+    leadStatuses: {
+      'New': 0,
+      'Contacted': 0,
+      'Qualified': 0,
+      'Lost': 0
+    }
   });
   const [recentLeads, setRecentLeads] = useState([]);
   const [recentDeals, setRecentDeals] = useState([]);
@@ -68,7 +83,7 @@ export default function DashboardSummaryPage() {
   const [rawInvoices, setRawInvoices] = useState([]);
   
   // Dashboard time filter selector state
-  const [timeFilter, setTimeFilter] = useState('monthly'); // 'daily' | 'weekly' | 'monthly'
+  const [timeFilter, setTimeFilter] = useState('monthly'); // 'weekly' | 'monthly' | 'yearly'
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -130,10 +145,6 @@ export default function DashboardSummaryPage() {
 
     const now = new Date();
     
-    // Day bounds
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    
     // Week bounds (Sunday to Saturday)
     const currentDay = now.getDay();
     const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currentDay, 0, 0, 0, 0);
@@ -143,13 +154,17 @@ export default function DashboardSummaryPage() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
+    // Year bounds
+    const startOfYear = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+    const endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+
     let startDate, endDate;
-    if (timeFilter === 'daily') {
-      startDate = startOfToday;
-      endDate = endOfToday;
-    } else if (timeFilter === 'weekly') {
+    if (timeFilter === 'weekly') {
       startDate = startOfWeek;
       endDate = endOfWeek;
+    } else if (timeFilter === 'yearly') {
+      startDate = startOfYear;
+      endDate = endOfYear;
     } else {
       startDate = startOfMonth;
       endDate = endOfMonth;
@@ -209,6 +224,35 @@ export default function DashboardSummaryPage() {
 
     const convRate = rawLeads.length > 0 ? Math.round((rawLeads.filter(l => l.status === 'Qualified' || l.status === 'Converted').length / rawLeads.length) * 100) : 0;
 
+    // Group Deals by Stage for Pipeline Chart
+    const pipelineStages = {
+      'Qualification': 0,
+      'Proposal': 0,
+      'Negotiation': 0,
+      'Won': 0,
+      'Lost': 0
+    };
+    filteredDeals.forEach(d => {
+      const stage = d.stage || 'Qualification';
+      if (pipelineStages[stage] !== undefined) {
+        pipelineStages[stage]++;
+      }
+    });
+
+    // Group Leads by Status for Leads Chart
+    const leadStatuses = {
+      'New': 0,
+      'Contacted': 0,
+      'Qualified': 0,
+      'Lost': 0
+    };
+    filteredLeads.forEach(l => {
+      const status = l.status || 'New';
+      if (leadStatuses[status] !== undefined) {
+        leadStatuses[status]++;
+      }
+    });
+
     setStats({
       totalLeads: totalL,
       newLeads: newL,
@@ -235,7 +279,9 @@ export default function DashboardSummaryPage() {
       pendingInvoices,
       overdueInvoices,
       
-      conversionRate: convRate
+      conversionRate: convRate,
+      pipelineStages,
+      leadStatuses
     });
   }, [rawLeads, rawDeals, rawOrgs, rawInvoices, timeFilter, loading]);
 
@@ -253,8 +299,8 @@ export default function DashboardSummaryPage() {
   };
 
   const getFilterLabel = () => {
-    if (timeFilter === 'daily') return 'Today';
     if (timeFilter === 'weekly') return 'This Week';
+    if (timeFilter === 'yearly') return 'This Year';
     return 'This Month';
   };
 
@@ -285,16 +331,6 @@ export default function DashboardSummaryPage() {
             {/* Filter Toggle */}
             <div className="flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 shadow-sm">
               <button
-                onClick={() => setTimeFilter('daily')}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                  timeFilter === 'daily'
-                    ? 'bg-white text-slate-800 shadow-sm border border-slate-100'
-                    : 'text-slate-500 hover:text-slate-800 border border-transparent'
-                }`}
-              >
-                Daily
-              </button>
-              <button
                 onClick={() => setTimeFilter('weekly')}
                 className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
                   timeFilter === 'weekly'
@@ -313,6 +349,16 @@ export default function DashboardSummaryPage() {
                 }`}
               >
                 Monthly
+              </button>
+              <button
+                onClick={() => setTimeFilter('yearly')}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  timeFilter === 'yearly'
+                    ? 'bg-white text-slate-800 shadow-sm border border-slate-100'
+                    : 'text-slate-500 hover:text-slate-800 border border-transparent'
+                }`}
+              >
+                Yearly
               </button>
             </div>
 
@@ -439,45 +485,161 @@ export default function DashboardSummaryPage() {
           {/* Left Main Column: Revenue & Directory Lists */}
           <div className="lg:col-span-2 space-y-6">
             
-            {/* Revenue Progress */}
-            <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+            {/* Dynamic Operational Charts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Sales Pipeline Stage Distribution */}
+              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
                 <div>
-                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Revenue Distribution Analysis</h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Secured Billings vs. Open Pipeline Valuation.</p>
+                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Pipeline Stage Distribution</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Deals distribution across sales pipeline stages.</p>
                 </div>
-                <span className="text-xs font-mono font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded border border-slate-100">
-                  Total Managed Pipeline: {formatCurrency(stats.pipelineValuation + stats.wonValuation)}
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex border border-slate-200">
-                  {stats.pipelineValuation + stats.wonValuation === 0 ? (
-                    <div className="w-full bg-slate-200 rounded-full"></div>
+                
+                <div className="space-y-3 pt-2">
+                  {Object.values(stats.pipelineStages || {}).reduce((a, b) => a + b, 0) === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-slate-400">
+                      <p className="text-xs italic font-medium">No deals recorded in this timeframe</p>
+                    </div>
                   ) : (
-                    <>
-                      <div 
-                        className="bg-emerald-500 shadow-sm shadow-emerald-500/10 transition-all duration-500" 
-                        style={{ width: `${(stats.wonValuation / (stats.pipelineValuation + stats.wonValuation)) * 100}%` }}
-                      ></div>
-                      <div 
-                        className="bg-amber-500 shadow-sm shadow-amber-500/10 transition-all duration-500" 
-                        style={{ width: `${(stats.pipelineValuation / (stats.pipelineValuation + stats.wonValuation)) * 100}%` }}
-                      ></div>
-                    </>
+                    Object.entries(stats.pipelineStages || {}).map(([stage, count]) => {
+                      const totalDealsInPeriod = Object.values(stats.pipelineStages).reduce((a, b) => a + b, 0);
+                      const percentage = totalDealsInPeriod > 0 ? (count / totalDealsInPeriod) * 100 : 0;
+                      
+                      const colorClass = 
+                        stage === 'Qualification' ? 'bg-blue-500' :
+                        stage === 'Proposal' ? 'bg-amber-500' :
+                        stage === 'Negotiation' ? 'bg-indigo-500' :
+                        stage === 'Won' ? 'bg-emerald-500' :
+                        'bg-rose-500';
+
+                      const labelColor =
+                        stage === 'Qualification' ? 'text-blue-700 bg-blue-50 border-blue-100' :
+                        stage === 'Proposal' ? 'text-amber-700 bg-amber-50 border-amber-100' :
+                        stage === 'Negotiation' ? 'text-indigo-700 bg-indigo-50 border-indigo-100' :
+                        stage === 'Won' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
+                        'text-rose-700 bg-rose-50 border-rose-100';
+
+                      return (
+                        <div key={stage} className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase border ${labelColor}`}>{stage}</span>
+                            <span className="font-bold text-slate-700">{count} {count === 1 ? 'deal' : 'deals'} ({Math.round(percentage)}%)</span>
+                          </div>
+                          <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-150">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ${colorClass}`}
+                              style={{ width: `${percentage}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
-                <div className="flex justify-start gap-5 pt-1 text-[10px] font-bold">
-                  <div className="flex items-center gap-1.5 text-slate-500">
-                    <span className="h-2.5 w-2.5 rounded bg-emerald-500"></span>
-                    <span>Closed Won ({stats.pipelineValuation + stats.wonValuation > 0 ? Math.round((stats.wonValuation / (stats.pipelineValuation + stats.wonValuation)) * 100) : 0}%)</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-slate-500">
-                    <span className="h-2.5 w-2.5 rounded bg-amber-500"></span>
-                    <span>Active Pipeline ({stats.pipelineValuation + stats.wonValuation > 0 ? Math.round((stats.pipelineValuation / (stats.pipelineValuation + stats.wonValuation)) * 100) : 0}%)</span>
-                  </div>
+              </div>
+
+              {/* Leads Status & Conversion */}
+              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Leads Conversion & Status</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Acquisition status of registered leads.</p>
                 </div>
+
+                {(() => {
+                  const totalLeadsInPeriod = Object.values(stats.leadStatuses || {}).reduce((a, b) => a + b, 0);
+                  if (totalLeadsInPeriod === 0) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                        <p className="text-xs italic font-medium">No leads recorded in this timeframe</p>
+                      </div>
+                    );
+                  }
+
+                  let currentSum = 0;
+                  const leadSegments = Object.entries(stats.leadStatuses || {}).map(([status, count]) => {
+                    const percent = totalLeadsInPeriod > 0 ? count / totalLeadsInPeriod : 0;
+                    const dashArray = `${percent * 251.3} 251.3`;
+                    const dashOffset = -currentSum * 251.3;
+                    currentSum += percent;
+
+                    const color = 
+                      status === 'New' ? 'stroke-blue-500' :
+                      status === 'Contacted' ? 'stroke-amber-500' :
+                      status === 'Qualified' ? 'stroke-emerald-500' :
+                      'stroke-rose-500';
+
+                    const textColor = 
+                      status === 'New' ? 'text-blue-500' :
+                      status === 'Contacted' ? 'text-amber-500' :
+                      status === 'Qualified' ? 'text-emerald-500' :
+                      'text-rose-500';
+
+                    const bgColor =
+                      status === 'New' ? 'bg-blue-500' :
+                      status === 'Contacted' ? 'bg-amber-500' :
+                      status === 'Qualified' ? 'bg-emerald-500' :
+                      'bg-rose-500';
+
+                    return {
+                      status,
+                      count,
+                      percentage: Math.round(percent * 100),
+                      dashArray,
+                      dashOffset,
+                      color,
+                      textColor,
+                      bgColor
+                    };
+                  });
+
+                  return (
+                    <div className="flex flex-col sm:flex-row items-center justify-around gap-6 pt-2">
+                      {/* SVG Donut */}
+                      <div className="relative h-32 w-32 flex items-center justify-center shrink-0">
+                        <svg className="h-full w-full transform -rotate-90">
+                          <circle
+                            cx="64"
+                            cy="64"
+                            r="40"
+                            className="stroke-slate-100 fill-transparent"
+                            strokeWidth="10"
+                          />
+                          {leadSegments.map((segment) => (
+                            segment.count > 0 && (
+                              <circle
+                                key={segment.status}
+                                cx="64"
+                                cy="64"
+                                r="40"
+                                className={`fill-transparent transition-all duration-500 ${segment.color}`}
+                                strokeWidth="10"
+                                strokeDasharray={segment.dashArray}
+                                strokeDashoffset={segment.dashOffset}
+                                strokeLinecap="round"
+                              />
+                            )
+                          ))}
+                        </svg>
+                        <div className="absolute flex flex-col items-center justify-center">
+                          <span className="text-lg font-black text-slate-800 leading-none">{totalLeadsInPeriod}</span>
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block font-mono mt-1 font-extrabold">Total Leads</span>
+                        </div>
+                      </div>
+
+                      {/* Legend */}
+                      <div className="space-y-2.5 w-full max-w-[180px]">
+                        {leadSegments.map((segment) => (
+                          <div key={segment.status} className="flex items-center justify-between text-xs font-semibold">
+                            <div className="flex items-center gap-2">
+                              <span className={`h-2.5 w-2.5 rounded-full ${segment.bgColor} shrink-0`}></span>
+                              <span className="text-slate-500">{segment.status}</span>
+                            </div>
+                            <span className="text-slate-700 font-bold">{segment.count} ({segment.percentage}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -722,16 +884,6 @@ export default function DashboardSummaryPage() {
           {/* Filter Toggle */}
           <div className="flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 shadow-sm">
             <button
-              onClick={() => setTimeFilter('daily')}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                timeFilter === 'daily'
-                  ? 'bg-white text-slate-800 shadow-sm border border-slate-100'
-                  : 'text-slate-500 hover:text-slate-800 border border-transparent'
-              }`}
-            >
-              Daily
-            </button>
-            <button
               onClick={() => setTimeFilter('weekly')}
               className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 timeFilter === 'weekly'
@@ -750,6 +902,16 @@ export default function DashboardSummaryPage() {
               }`}
             >
               Monthly
+            </button>
+            <button
+              onClick={() => setTimeFilter('yearly')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                timeFilter === 'yearly'
+                  ? 'bg-white text-slate-800 shadow-sm border border-slate-100'
+                  : 'text-slate-500 hover:text-slate-800 border border-transparent'
+              }`}
+            >
+              Yearly
             </button>
           </div>
 
@@ -870,46 +1032,161 @@ export default function DashboardSummaryPage() {
         </div>
       </div>
 
-      {/* --- DYNAMIC CUSTOM REVENUE VISUALIZATION BAR --- */}
-      <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+      {/* Dynamic Operational Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Sales Pipeline Stage Distribution */}
+        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
           <div>
-            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Revenue Distribution Analysis</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Ratio of active deals pipeline valuation vs. already secured billing revenue.</p>
+            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Pipeline Stage Distribution</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Deals distribution across sales pipeline stages.</p>
           </div>
-          <span className="text-xs font-mono font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded border border-slate-100">
-            Total Valuation: {formatCurrency(stats.pipelineValuation + stats.wonValuation)}
-          </span>
-        </div>
-
-        {/* Custom Progress visualization bar */}
-        <div className="space-y-2">
-          <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex border border-slate-200">
-            {stats.pipelineValuation + stats.wonValuation === 0 ? (
-              <div className="w-full bg-slate-200 rounded-full"></div>
+          
+          <div className="space-y-3 pt-2">
+            {Object.values(stats.pipelineStages || {}).reduce((a, b) => a + b, 0) === 0 ? (
+              <div className="flex flex-col items-center justify-center py-6 text-slate-400">
+                <p className="text-xs italic font-medium">No deals recorded in this timeframe</p>
+              </div>
             ) : (
-              <>
-                <div 
-                  className="bg-emerald-500 shadow-sm shadow-emerald-500/10 transition-all duration-500" 
-                  style={{ width: `${(stats.wonValuation / (stats.pipelineValuation + stats.wonValuation)) * 100}%` }}
-                ></div>
-                <div 
-                  className="bg-amber-500 shadow-sm shadow-amber-500/10 transition-all duration-500" 
-                  style={{ width: `${(stats.pipelineValuation / (stats.pipelineValuation + stats.wonValuation)) * 100}%` }}
-                ></div>
-              </>
+              Object.entries(stats.pipelineStages || {}).map(([stage, count]) => {
+                const totalDealsInPeriod = Object.values(stats.pipelineStages).reduce((a, b) => a + b, 0);
+                const percentage = totalDealsInPeriod > 0 ? (count / totalDealsInPeriod) * 100 : 0;
+                
+                const colorClass = 
+                  stage === 'Qualification' ? 'bg-blue-500' :
+                  stage === 'Proposal' ? 'bg-amber-500' :
+                  stage === 'Negotiation' ? 'bg-indigo-500' :
+                  stage === 'Won' ? 'bg-emerald-500' :
+                  'bg-rose-500';
+
+                const labelColor =
+                  stage === 'Qualification' ? 'text-blue-700 bg-blue-50 border-blue-100' :
+                  stage === 'Proposal' ? 'text-amber-700 bg-amber-50 border-amber-100' :
+                  stage === 'Negotiation' ? 'text-indigo-700 bg-indigo-50 border-indigo-100' :
+                  stage === 'Won' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
+                  'text-rose-700 bg-rose-50 border-rose-100';
+
+                return (
+                  <div key={stage} className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase border ${labelColor}`}>{stage}</span>
+                      <span className="font-bold text-slate-700">{count} {count === 1 ? 'deal' : 'deals'} ({Math.round(percentage)}%)</span>
+                    </div>
+                    <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-150">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${colorClass}`}
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
-          <div className="flex justify-start gap-5 pt-1 text-[10px] font-bold">
-            <div className="flex items-center gap-1.5 text-slate-500">
-              <span className="h-2.5 w-2.5 rounded bg-emerald-500"></span>
-              <span>Closed Won ({stats.pipelineValuation + stats.wonValuation > 0 ? Math.round((stats.wonValuation / (stats.pipelineValuation + stats.wonValuation)) * 100) : 0}%)</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-slate-500">
-              <span className="h-2.5 w-2.5 rounded bg-amber-500"></span>
-              <span>Active Pipeline ({stats.pipelineValuation + stats.wonValuation > 0 ? Math.round((stats.pipelineValuation / (stats.pipelineValuation + stats.wonValuation)) * 100) : 0}%)</span>
-            </div>
+        </div>
+
+        {/* Leads Status & Conversion */}
+        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
+          <div>
+            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Leads Conversion & Status</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Acquisition status of registered leads.</p>
           </div>
+
+          {(() => {
+            const totalLeadsInPeriod = Object.values(stats.leadStatuses || {}).reduce((a, b) => a + b, 0);
+            if (totalLeadsInPeriod === 0) {
+              return (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <p className="text-xs italic font-medium">No leads recorded in this timeframe</p>
+                </div>
+              );
+            }
+
+            let currentSum = 0;
+            const leadSegments = Object.entries(stats.leadStatuses || {}).map(([status, count]) => {
+              const percent = totalLeadsInPeriod > 0 ? count / totalLeadsInPeriod : 0;
+              const dashArray = `${percent * 251.3} 251.3`;
+              const dashOffset = -currentSum * 251.3;
+              currentSum += percent;
+
+              const color = 
+                status === 'New' ? 'stroke-blue-500' :
+                status === 'Contacted' ? 'stroke-amber-500' :
+                status === 'Qualified' ? 'stroke-emerald-500' :
+                'stroke-rose-500';
+
+              const textColor = 
+                status === 'New' ? 'text-blue-500' :
+                status === 'Contacted' ? 'text-amber-500' :
+                status === 'Qualified' ? 'text-emerald-500' :
+                'text-rose-500';
+
+              const bgColor =
+                status === 'New' ? 'bg-blue-500' :
+                status === 'Contacted' ? 'bg-amber-500' :
+                status === 'Qualified' ? 'bg-emerald-500' :
+                'bg-rose-500';
+
+              return {
+                status,
+                count,
+                percentage: Math.round(percent * 100),
+                dashArray,
+                dashOffset,
+                color,
+                textColor,
+                bgColor
+              };
+            });
+
+            return (
+              <div className="flex flex-col sm:flex-row items-center justify-around gap-6 pt-2">
+                {/* SVG Donut */}
+                <div className="relative h-32 w-32 flex items-center justify-center shrink-0">
+                  <svg className="h-full w-full transform -rotate-90">
+                    <circle
+                      cx="64"
+                      cy="64"
+                      r="40"
+                      className="stroke-slate-100 fill-transparent"
+                      strokeWidth="10"
+                    />
+                    {leadSegments.map((segment) => (
+                      segment.count > 0 && (
+                        <circle
+                          key={segment.status}
+                          cx="64"
+                          cy="64"
+                          r="40"
+                          className={`fill-transparent transition-all duration-500 ${segment.color}`}
+                          strokeWidth="10"
+                          strokeDasharray={segment.dashArray}
+                          strokeDashoffset={segment.dashOffset}
+                          strokeLinecap="round"
+                        />
+                      )
+                    ))}
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center">
+                    <span className="text-lg font-black text-slate-800 leading-none">{totalLeadsInPeriod}</span>
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block font-mono mt-1 font-extrabold">Total Leads</span>
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div className="space-y-2.5 w-full max-w-[180px]">
+                  {leadSegments.map((segment) => (
+                    <div key={segment.status} className="flex items-center justify-between text-xs font-semibold">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2.5 w-2.5 rounded-full ${segment.bgColor} shrink-0`}></span>
+                        <span className="text-slate-500">{segment.status}</span>
+                      </div>
+                      <span className="text-slate-700 font-bold">{segment.count} ({segment.percentage}%)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

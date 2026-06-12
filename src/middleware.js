@@ -78,7 +78,16 @@ async function handleMiddlewareLogic(req) {
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
     const now = Date.now();
     const windowMs = 60000; // 1 minute
-    const isDev = process.env.NODE_ENV === 'development';
+    const isDev = process.env.NODE_ENV === 'development' || 
+                  process.env.NODE_ENV === undefined || 
+                  process.env.NODE_ENV !== 'production';
+                  
+    const host = req.headers.get('host') || '';
+    const isLocalhost = ip === '127.0.0.1' || 
+                        ip === '::1' || 
+                        host.includes('localhost') || 
+                        host.includes('127.0.0.1') || 
+                        host.includes('[::1]');
     
     // Only apply strict limit (5 req/min) to authentication-critical public routes (login, register, forgot/reset password).
     // Do NOT strictly rate limit session status checks (/api/auth/me) or logouts (/api/auth/logout).
@@ -86,7 +95,7 @@ async function handleMiddlewareLogic(req) {
                               pathname !== '/api/auth/me' && 
                               pathname !== '/api/auth/logout';
                               
-    const maxRequests = isDev ? 1000 : (isStrictAuthRoute ? 5 : 60);
+    const maxRequests = (isDev || isLocalhost) ? 1000 : (isStrictAuthRoute ? 20 : 60);
 
     const tokenData = rateLimitMap.get(ip) || { count: 0, startTime: now };
 
@@ -100,6 +109,7 @@ async function handleMiddlewareLogic(req) {
     rateLimitMap.set(ip, tokenData);
 
     if (tokenData.count > maxRequests) {
+      console.warn(`[Rate Limiter] Blocked IP ${ip} requesting ${pathname} (Count: ${tokenData.count}, Max Allowed: ${maxRequests})`);
       return NextResponse.json({ error: 'Too many requests, please try again later.' }, { status: 429 });
     }
     // ---------------------
