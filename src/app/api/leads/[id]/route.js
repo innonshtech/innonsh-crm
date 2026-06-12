@@ -110,7 +110,7 @@ export async function PUT(req, { params }) {
     if (supabase) {
       const { data: existingLead, error: fetchError } = await supabase
         .from('leads')
-        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!created_by(id, name, email, role)')
+        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!leads_created_by_fkey(id, name, email, role)')
         .eq('id', id)
         .maybeSingle();
 
@@ -304,7 +304,7 @@ export async function PUT(req, { params }) {
 
       if (isPublic !== undefined) {
         if (decodedUser.role === 'owner') {
-          updates.is_public = isPublic === true;
+          updates.visibility_scope = isPublic === true ? 'GLOBAL' : 'PERSONAL';
         }
       }
 
@@ -376,7 +376,7 @@ export async function PUT(req, { params }) {
       // Fetch populated fresh document to return to client
       const { data: refreshedLead, error: refreshError } = await supabase
         .from('leads')
-        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)')
+        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!leads_created_by_fkey(id, name, email, role), lead_notes(*), lead_attachments(*)')
         .eq('id', id)
         .single();
 

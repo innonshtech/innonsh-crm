@@ -476,7 +476,7 @@ export async function POST(req) {
       // Fetch freshly joined lead to match response data
       const { data: refreshedLead } = await supabase
         .from('leads')
-        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!created_by(id, name, email, role), lead_notes(*), lead_attachments(*)')
+        .select('*, assignee:users!leads_assigned_to_fkey(id, name, email), creator:users!leads_created_by_fkey(id, name, email, role), lead_notes(*), lead_attachments(*)')
         .eq('id', newLead.id)
         .single();
 
