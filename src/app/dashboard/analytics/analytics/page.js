@@ -1,3 +1,5 @@
-import ReportsPage from '../../reports/page';
+import { redirect } from 'next/navigation';
 
-export default ReportsPage;
+export default function LegacyNestedAnalyticsRedirectPage() {
+  redirect('/dashboard/reports');
+}

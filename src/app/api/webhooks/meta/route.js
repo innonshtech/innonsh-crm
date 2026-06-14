@@ -90,6 +90,24 @@ export async function POST(req) {
             continue;
           }
 
+          // Verify if Webhook Integrations module is enabled in Roles & Permissions
+          const { data: orgData } = await supabase
+            .from('organizations')
+            .select('roles_permissions')
+            .eq('id', config.org_id)
+            .maybeSingle();
+
+          if (orgData && orgData.roles_permissions) {
+            const ownerPerms = orgData.roles_permissions['owner'] || [];
+            const webhooksPerm = Array.isArray(ownerPerms)
+              ? ownerPerms.find(p => p.module === 'Webhook Integrations')
+              : orgData.roles_permissions['owner']?.['Webhook Integrations'];
+            if (webhooksPerm && webhooksPerm.read === 'No') {
+              console.warn(`⚠️ Webhook Integrations is disabled for organization ${config.org_id}. Event ignored.`);
+              continue;
+            }
+          }
+
           // 2. Fetch detailed lead data from Meta Graph API
           const metaUrl = `https://graph.facebook.com/v20.0/${leadgenId}?access_token=${config.page_access_token}`;
           const metaRes = await fetch(metaUrl);

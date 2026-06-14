@@ -29,7 +29,7 @@ export async function GET(req) {
     let userCompanyName = '';
     let userOrgId = null;
     let userGstin = '';
-    let userEnabledModules = ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'analytics', 'users', 'roles', 'teams'];
+    let userEnabledModules = ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'users', 'roles', 'teams'];
 
     let userSectorId = 'SOFTWARE_SERVICES';
     let userSectorName = 'Software Services';

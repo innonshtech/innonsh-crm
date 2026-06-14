@@ -39,7 +39,9 @@ export default function RolesPermissionsPage() {
       { module: 'Tax Invoices Hub', read: 'Global', write: 'Yes', delete: 'Yes' },
       { module: 'Reports & BI Analytics', read: 'Global', write: 'Yes', delete: 'Yes' },
       { module: 'Users & Team Directory', read: 'Global', write: 'Yes', delete: 'Yes' },
-      { module: 'System Configurations', read: 'Global', write: 'Yes', delete: 'Yes' }
+      { module: 'System Configurations', read: 'Global', write: 'Yes', delete: 'Yes' },
+      { module: 'Webhook Integrations', read: 'Global', write: 'Yes', delete: 'Yes' },
+      { module: 'Product Leads', read: 'Global', write: 'Yes', delete: 'Yes' }
     ],
     sales_admin: [
       { module: 'Leads Directory', read: 'Global', write: 'Yes', delete: 'No' },
@@ -49,7 +51,9 @@ export default function RolesPermissionsPage() {
       { module: 'Tax Invoices Hub', read: 'Global', write: 'Yes (Log Payments Only)', delete: 'No' },
       { module: 'Reports & BI Analytics', read: 'Global', write: 'Yes', delete: 'No' },
       { module: 'Users & Team Directory', read: 'Team List only', write: 'No', delete: 'No' },
-      { module: 'System Configurations', read: 'No', write: 'No', delete: 'No' }
+      { module: 'System Configurations', read: 'No', write: 'No', delete: 'No' },
+      { module: 'Webhook Integrations', read: 'Global', write: 'Yes', delete: 'No' },
+      { module: 'Product Leads', read: 'Global', write: 'Yes', delete: 'No' }
     ],
     sales_rep: [
       { module: 'Leads Directory', read: 'Assigned Only', write: 'Yes', delete: 'No' },
@@ -59,7 +63,9 @@ export default function RolesPermissionsPage() {
       { module: 'Tax Invoices Hub', read: 'Assigned Only', write: 'No', delete: 'No' },
       { module: 'Reports & BI Analytics', read: 'Personal Only', write: 'No', delete: 'No' },
       { module: 'Users & Team Directory', read: 'No', write: 'No', delete: 'No' },
-      { module: 'System Configurations', read: 'No', write: 'No', delete: 'No' }
+      { module: 'System Configurations', read: 'No', write: 'No', delete: 'No' },
+      { module: 'Webhook Integrations', read: 'No', write: 'No', delete: 'No' },
+      { module: 'Product Leads', read: 'No', write: 'No', delete: 'No' }
     ]
   };
 

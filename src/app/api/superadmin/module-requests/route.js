@@ -106,8 +106,7 @@ export async function PUT(req) {
         case 'products': return 'Products Catalogue';
         case 'quotations': return 'Quotations Builder';
         case 'invoices': return 'Invoices & Billing Hub';
-        case 'reports': return 'Sales Reports Builder';
-        case 'analytics': return 'BI Analytics & Forecasting';
+        case 'reports': return 'Report and Analytics';
         case 'users': return 'Users & Employee Directory';
         case 'roles': return 'Roles & Permission Gates';
         case 'teams': return 'Teams & Department Manager';

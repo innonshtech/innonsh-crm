@@ -104,7 +104,7 @@ export default function ReportsPage() {
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
             <BarChart3 className="h-7 w-7 text-emerald-500" />
-            Executive BI Analytics Suite
+            Report and Analytics
           </h1>
           <p className="text-sm text-slate-500 mt-1 font-medium">
             Corporate overview panel of monthly sales funnel metrics, locking pipeline values, and representative scorecards.

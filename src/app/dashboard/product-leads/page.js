@@ -36,7 +36,7 @@ export default function ProductLeadsPage() {
     try {
       // We fetch all leads, or if we want we can add a filter to /api/leads 
       // but for dynamic fast filtering, we'll fetch all and filter in client if no specific endpoint
-      const res = await fetch('/api/leads');
+      const res = await fetch('/api/leads?isProductLeads=true');
       if (res.ok) {
         const data = await res.json();
         setLeads(data.leads || []);

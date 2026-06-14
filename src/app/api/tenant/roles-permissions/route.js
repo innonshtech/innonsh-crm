@@ -17,7 +17,24 @@ export async function GET(req) {
       return NextResponse.json({ success: true, rolesPermissions: {} });
     }
 
-    // Supabase PostgreSQL does not support customizable roles_permissions yet. Fall back to defaults.
+    if (user.orgId) {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('roles_permissions')
+        .eq('id', user.orgId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Failed to fetch roles permissions from Supabase:', error);
+        throw error;
+      }
+
+      return NextResponse.json({
+        success: true,
+        rolesPermissions: (data && data.roles_permissions) ? data.roles_permissions : {},
+      });
+    }
+
     return NextResponse.json({
       success: true,
       rolesPermissions: {},
@@ -47,8 +64,16 @@ export async function PUT(req) {
       return NextResponse.json({ error: 'rolesPermissions must be an object.' }, { status: 400 });
     }
 
-    if (supabase) {
-      // Supabase PostgreSQL does not support customizable roles_permissions yet.
+    if (supabase && user.orgId) {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ roles_permissions: rolesPermissions })
+        .eq('id', user.orgId);
+
+      if (error) {
+        console.error('Failed to update roles permissions in Supabase:', error);
+        throw error;
+      }
     }
 
     return NextResponse.json({

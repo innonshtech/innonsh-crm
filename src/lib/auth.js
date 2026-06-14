@@ -168,9 +168,6 @@ export function checkLeadVisibility(lead, user, rolesPermissions = null) {
   if (!user) return false;
   if (user.isSuperAdmin) return true;
 
-  const isPublic = lead.is_public || lead.isPublic || false;
-  if (isPublic) return true;
-
   const userId = user.id || user._id;
   const userRole = user.role;
 
@@ -195,16 +192,22 @@ export function checkLeadVisibility(lead, user, rolesPermissions = null) {
 
   let readScope = defaultReadScopes[userRole] || 'Assigned Only';
 
+  const targetModule = (lead.source === 'Website') ? 'Product Leads' : 'Leads Directory';
+
   if (rolesPermissions && rolesPermissions[userRole]) {
     const rolePerms = rolesPermissions[userRole];
     const leadsPerm = Array.isArray(rolePerms) 
-      ? rolePerms.find(p => p.module === 'Leads Directory')
-      : rolePerms['Leads Directory'];
+      ? rolePerms.find(p => p.module === targetModule)
+      : rolePerms[targetModule];
 
     if (leadsPerm) {
       readScope = leadsPerm.read;
     }
   }
+
+  // If public/global visibility is set, respect it only if user has general access (not strictly restricted to personal/assigned)
+  const isPublic = lead.is_public || lead.isPublic || false;
+  if (isPublic && readScope !== 'Assigned Only' && readScope !== 'Personal Only' && readScope !== 'No') return true;
 
   if (readScope === 'Global') return true;
   if (readScope === 'No') return false;
@@ -214,14 +217,16 @@ export function checkLeadVisibility(lead, user, rolesPermissions = null) {
     if (leadCreatedByRole === 'sales_rep' || leadCreatedByRole === 'sales_admin') return true;
     return false;
   }
-  if (readScope === 'Assigned Only') return false;
+  if (readScope === 'Assigned Only' || readScope === 'Personal Only') {
+    return false; // Must be creator or assignee (handled in Rule 1 above)
+  }
 
   // Rule 2: Legacy leads (created_by is null)
   if (!creatorId) {
     if (userRole !== 'sales_rep') {
       return true; // Owners and managers see all legacy leads
     }
-    return !assigneeId || assigneeId.toString() === userId.toString();
+    return false;
   }
 
   // Rule 3: If created by a sales rep, owners and managers can see it
@@ -256,12 +261,14 @@ export function checkLeadEditPermission(lead, user, rolesPermissions = null) {
   const userId = user.id || user._id;
   const userRole = user.role;
 
+  const targetModule = (lead.source === 'Website') ? 'Product Leads' : 'Leads Directory';
+
   // Check dynamic permissions if provided
   if (rolesPermissions && rolesPermissions[userRole]) {
     const rolePerms = rolesPermissions[userRole];
     const leadsPerm = Array.isArray(rolePerms) 
-      ? rolePerms.find(p => p.module === 'Leads Directory')
-      : rolePerms['Leads Directory'];
+      ? rolePerms.find(p => p.module === targetModule)
+      : rolePerms[targetModule];
 
     if (leadsPerm) {
       const writeScope = leadsPerm.write; // 'Yes' or 'No'

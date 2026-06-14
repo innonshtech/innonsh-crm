@@ -115,7 +115,6 @@ export default function DashboardLayout({ children }) {
     '/dashboard/quotations': 'quotations',
     '/dashboard/invoices': 'invoices',
     '/dashboard/reports': 'reports',
-    '/dashboard/analytics': 'analytics',
     '/dashboard/users': 'users',
     '/dashboard/roles': 'roles',
     '/dashboard/teams': 'teams',
@@ -145,8 +144,7 @@ export default function DashboardLayout({ children }) {
       case 'products': return `${productTerm}s Catalogue`;
       case 'quotations': return 'Quotations Builder';
       case 'invoices': return 'Invoices & Billing Hub';
-      case 'reports': return 'Sales Reports Builder';
-      case 'analytics': return 'BI Analytics & Forecasting';
+      case 'reports': return 'Report and Analytics';
       case 'users': return 'Users & Employee Directory';
       case 'roles': return 'Roles & Permission Gates';
       case 'teams': return 'Teams & Department Manager';
@@ -364,8 +362,7 @@ export default function DashboardLayout({ children }) {
     {
       title: 'Analytics & BI',
       links: [
-        { name: 'Reports', href: '/dashboard/reports', icon: BarChart3 },
-        { name: 'Analytics', href: '/dashboard/analytics', icon: PieChart },
+        { name: 'Report and Analytics', href: '/dashboard/reports', icon: BarChart3 },
       ]
     },
     {
@@ -452,7 +449,7 @@ export default function DashboardLayout({ children }) {
             'Meetings',
             'Products',
             'Quotations',
-            'Reports',
+            'Report and Analytics',
             'Notifications',
             'Settings',
             'Profile',

@@ -35,6 +35,7 @@ export async function GET(req) {
     const priority = searchParams.get('priority') || '';
     const assignedToFilter = searchParams.get('assignedTo') || '';
     const sortBy = searchParams.get('sortBy') || 'newest';
+    const isProductLeads = searchParams.get('isProductLeads') === 'true';
 
     let leads = [];
 
@@ -63,19 +64,18 @@ export async function GET(req) {
         }
       }
 
-      const defaultReadScopes = {
-        owner: 'Global',
-        sales_admin: 'Global',
-        sales_rep: 'Assigned Only'
-      };
+      const defaultReadScopes = isProductLeads
+        ? { owner: 'Global', sales_admin: 'Global', sales_rep: 'No' }
+        : { owner: 'Global', sales_admin: 'Global', sales_rep: 'Assigned Only' };
 
       const userRole = decodedUser.role;
       const rolePerms = rolesPermissions[userRole] || [];
+      const targetModule = isProductLeads ? 'Product Leads' : 'Leads Directory';
       const leadsPerm = Array.isArray(rolePerms) 
-        ? rolePerms.find(p => p.module === 'Leads Directory')
-        : rolePerms['Leads Directory'];
+        ? rolePerms.find(p => p.module === targetModule)
+        : rolePerms[targetModule];
       
-      const readScope = leadsPerm ? leadsPerm.read : defaultReadScopes[userRole] || 'Assigned Only';
+      const readScope = leadsPerm ? leadsPerm.read : defaultReadScopes[userRole] || (isProductLeads ? 'No' : 'Assigned Only');
 
       if (readScope === 'Global') {
         if (assignedToFilter) {
@@ -91,7 +91,7 @@ export async function GET(req) {
         // Fetch all leads for multi-tenant org and filter in memory later
       } else {
         // Assigned Only or Personal Only
-        queryBuilder = queryBuilder.or(`created_by.eq.${decodedUser.id},assigned_to.eq.${decodedUser.id},and(created_by.is.null,assigned_to.is.null),visibility_scope.eq.GLOBAL`);
+        queryBuilder = queryBuilder.or(`created_by.eq.${decodedUser.id},assigned_to.eq.${decodedUser.id}`);
       }
 
       // Filters
@@ -102,7 +102,9 @@ export async function GET(req) {
           queryBuilder = queryBuilder.eq('status', status);
         }
       }
-      if (source) {
+      if (isProductLeads) {
+        queryBuilder = queryBuilder.eq('source', 'Website');
+      } else if (source) {
         queryBuilder = queryBuilder.eq('source', source);
       }
       if (priority) {
@@ -165,12 +167,20 @@ export async function GET(req) {
       await connectToDatabase();
       const query = {};
 
-      if (decodedUser.role === 'sales_rep') {
+      const defaultReadScopes = isProductLeads
+        ? { owner: 'Global', sales_admin: 'Global', sales_rep: 'No' }
+        : { owner: 'Global', sales_admin: 'Global', sales_rep: 'Assigned Only' };
+
+      const readScope = defaultReadScopes[decodedUser.role] || (isProductLeads ? 'No' : 'Assigned Only');
+
+      if (readScope === 'No') {
+        return NextResponse.json({ success: true, leads: [] });
+      }
+
+      if (readScope === 'Assigned Only' || readScope === 'Personal Only' || decodedUser.role === 'sales_rep') {
         query.$or = [
           { createdBy: decodedUser.id },
-          { assignedTo: decodedUser.id },
-          { $and: [ { createdBy: null }, { assignedTo: null } ] },
-          { isPublic: true }
+          { assignedTo: decodedUser.id }
         ];
       } else {
         query.$or = [
@@ -198,7 +208,11 @@ export async function GET(req) {
           query.status = status;
         }
       }
-      if (source) query.source = source;
+      if (isProductLeads) {
+        query.source = 'Website';
+      } else if (source) {
+        query.source = source;
+      }
       if (priority) query.priority = priority;
 
       if (search) {

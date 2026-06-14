@@ -27,7 +27,7 @@ export async function POST(req) {
     let userOrgApprovalStatus = 'Approved';
     let userCompanyName = '';
     let userOrgId = null;
-    let userEnabledModules = ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'analytics', 'users', 'roles', 'teams', 'real-estate'];
+    let userEnabledModules = ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'users', 'roles', 'teams', 'real-estate'];
 
     // 1. DYNAMIC DATABASE DETECTOR
     if (supabase) {

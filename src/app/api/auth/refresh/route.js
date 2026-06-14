@@ -91,7 +91,7 @@ export async function POST(req) {
         return NextResponse.json({ error: 'User is inactive or deleted.' }, { status: 401 });
       }
 
-      let userEnabledModules = ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'analytics', 'users', 'roles', 'teams', 'real-estate'];
+      let userEnabledModules = ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'users', 'roles', 'teams', 'real-estate'];
 
       // Fetch organization details to get enabled modules
       if (user.org_id && !user.is_super_admin) {

@@ -66,7 +66,7 @@ export async function GET() {
             {
               name: 'Innonsh',
               approval_status: 'Approved',
-              enabled_modules: ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'analytics', 'users', 'roles', 'teams']
+              enabled_modules: ['leads', 'deals', 'contacts', 'tasks', 'emails', 'calls', 'meetings', 'products', 'quotations', 'invoices', 'reports', 'users', 'roles', 'teams']
             }
           ])
           .select('id')

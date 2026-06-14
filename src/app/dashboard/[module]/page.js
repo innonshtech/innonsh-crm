@@ -25,8 +25,7 @@ export default function DynamicModuleFallbackPage() {
       case 'products': return 'Products Catalogue';
       case 'quotations': return 'Quotations Builder';
       case 'invoices': return 'Invoices & Billing Hub';
-      case 'reports': return 'Sales Reports Builder';
-      case 'analytics': return 'BI Analytics & Forecasting';
+      case 'reports': return 'Report and Analytics';
       case 'users': return 'Users & Employee Directory';
       case 'roles': return 'Roles & Permission Gates';
       case 'teams': return 'Teams & Department Manager';
@@ -40,12 +39,12 @@ export default function DynamicModuleFallbackPage() {
   const getModulePhase = (slug) => {
     const activities = ['tasks', 'calls', 'meetings', 'contacts'];
     const billing = ['products', 'quotations', 'invoices'];
-    const analytics = ['reports', 'analytics'];
+    const analytics = ['reports'];
     const admin = ['users', 'roles', 'teams'];
 
     if (activities.includes(slug)) return { phase: 'Phase 5', name: 'Unified Activities Logs', status: 'Scheduled for Next Step' };
     if (billing.includes(slug)) return { phase: 'Phase 6', name: 'Inventory & Billing Suite', status: 'Under Scaffolding' };
-    if (analytics.includes(slug)) return { phase: 'Phase 6', name: 'Interactive Reports & Analytics', status: 'Scheduled for Design' };
+    if (analytics.includes(slug)) return { phase: 'Phase 6', name: 'Report and Analytics', status: 'Scheduled for Design' };
     if (admin.includes(slug)) return { phase: 'Phase 7', name: 'Advanced Team Administration', status: 'Under Security Scaffolding' };
     return { phase: 'Phase 5', name: 'CRM Portal Addon', status: 'Planned' };
   };
