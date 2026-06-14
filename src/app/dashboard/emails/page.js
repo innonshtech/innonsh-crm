@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Mail,
   Send,
@@ -21,7 +21,8 @@ import {
   ArrowRight,
   User,
   MessageSquare,
-  Trash2
+  Trash2,
+  ChevronDown
 } from 'lucide-react';
 
 export default function EmailHubPage() {
@@ -99,12 +100,18 @@ export default function EmailHubPage() {
   const [cc, setCc] = useState('');
   const [showCc, setShowCc] = useState(false);
   const [subject, setSubject] = useState('');
+  const [attachProposal, setAttachProposal] = useState(false);
   const [proposalFile, setProposalFile] = useState('Proposal.pdf');
   const [proposalFileData, setProposalFileData] = useState('');
   const [proposalFileMimeType, setProposalFileMimeType] = useState('');
   const [body, setBody] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [formError, setFormError] = useState('');
+  
+  // Searchable Target Recipient states
+  const [recipientSearchQuery, setRecipientSearchQuery] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -193,8 +200,23 @@ export default function EmailHubPage() {
     fetchData();
   }, []);
 
+  // Close dropdown and reset search query when user clicks outside the component
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // Sync composition form targets when tab changes
   useEffect(() => {
+    setRecipientSearchQuery('');
+    setIsDropdownOpen(false);
     if (activeTab === 'leads' && leads.length > 0) {
       setTargetId(leads[0]._id);
     } else if (activeTab === 'contacts' && contacts.length > 0) {
@@ -220,17 +242,20 @@ export default function EmailHubPage() {
       setFormSuccess('');
       setFormError('');
 
-      const defaultTemplateBody = "Hi {{firstName}},\n\nI hope you are doing well!\n\nI have reviewed your requirements from {{company}} and prepared a detailed proposal for our corporate CRM implementation services.\n\nPlease find the attached estimate ({{proposalFile}}) and download it to review the pricing details.\n\nLooking forward to hearing your thoughts!\n\nBest regards,\nSales Team";
+      const defaultTemplateWithAttachment = "Hi {{firstName}},\n\nI hope you are doing well!\n\nI have reviewed your requirements from {{company}} and prepared a detailed proposal for our corporate CRM implementation services.\n\nPlease find the attached estimate ({{proposalFile}}) and download it to review the pricing details.\n\nLooking forward to hearing your thoughts!\n\nBest regards,\nSales Team";
+      const defaultTemplateWithoutAttachment = "Hi {{firstName}},\n\nI hope you are doing well!\n\nI have reviewed your requirements from {{company}} and wanted to follow up regarding our corporate CRM implementation services.\n\nPlease let me know if you would like to schedule a brief call to discuss how we can help your team.\n\nLooking forward to hearing from you!\n\nBest regards,\nSales Team";
+
+      const defaultTemplateBody = attachProposal ? defaultTemplateWithAttachment : defaultTemplateWithoutAttachment;
       const finalEmailBody = body.trim() || defaultTemplateBody;
 
       const emailPayload = {
         subject,
-        body: finalEmailBody.replace(/\{\{proposalFile\}\}/g, proposalFile || 'Proposal.pdf'),
+        body: finalEmailBody.replace(/\{\{proposalFile\}\}/g, attachProposal ? (proposalFile || 'Proposal.pdf') : ''),
         leadId: activeTab === 'leads' ? targetId : null,
         contactId: activeTab === 'contacts' ? targetId : null,
-        proposalFile: proposalFile || '',
-        proposalFileData: proposalFileData || '',
-        proposalFileMimeType: proposalFileMimeType || '',
+        proposalFile: attachProposal ? (proposalFile || 'Proposal.pdf') : '',
+        proposalFileData: attachProposal ? proposalFileData : '',
+        proposalFileMimeType: attachProposal ? proposalFileMimeType : '',
         channel: 'email',
         cc: cc.trim()
       };
@@ -292,22 +317,25 @@ export default function EmailHubPage() {
       setFormSuccess('');
       setFormError('');
 
-      const defaultTemplateBody = "Hi {{firstName}},\n\nI hope you are doing well!\n\nI have reviewed your requirements from {{company}} and prepared a detailed proposal for our corporate CRM implementation services.\n\nPlease find the attached estimate ({{proposalFile}}) and download it to review the pricing details.\n\nLooking forward to hearing your thoughts!\n\nBest regards,\nSales Team";
+      const defaultTemplateWithAttachment = "Hi {{firstName}},\n\nI hope you are doing well!\n\nI have reviewed your requirements from {{company}} and prepared a detailed proposal for our corporate CRM implementation services.\n\nPlease find the attached estimate ({{proposalFile}}) and download it to review the pricing details.\n\nLooking forward to hearing your thoughts!\n\nBest regards,\nSales Team";
+      const defaultTemplateWithoutAttachment = "Hi {{firstName}},\n\nI hope you are doing well!\n\nI have reviewed your requirements from {{company}} and wanted to follow up regarding our corporate CRM implementation services.\n\nPlease let me know if you would like to schedule a brief call to discuss how we can help your team.\n\nLooking forward to hearing from you!\n\nBest regards,\nSales Team";
+
+      const defaultTemplateBody = attachProposal ? defaultTemplateWithAttachment : defaultTemplateWithoutAttachment;
       const rawBody = body.trim() || defaultTemplateBody;
       const replacedBody = rawBody
         .replace(/\{\{firstName\}\}/g, activeRecipient.firstName || 'Client')
         .replace(/\{\{company\}\}/g, activeRecipient.company || 'your company')
-        .replace(/\{\{proposalFile\}\}/g, proposalFile || 'Proposal.pdf');
+        .replace(/\{\{proposalFile\}\}/g, attachProposal ? (proposalFile || 'Proposal.pdf') : '');
 
       // Create a trackable email/proposal log in the database (SMTP will be bypassed for WhatsApp log)
       const emailPayload = {
-        subject: subject.trim() || `Sales Proposal for ${activeRecipient.company || 'Client'}`,
+        subject: subject.trim() || (attachProposal ? `Sales Proposal for ${activeRecipient.company || 'Client'}` : `Follow up regarding CRM Services for ${activeRecipient.company || 'Client'}`),
         body: replacedBody,
         leadId: activeTab === 'leads' ? targetId : null,
         contactId: activeTab === 'contacts' ? targetId : null,
-        proposalFile: proposalFile || '',
-        proposalFileData: proposalFileData || '',
-        proposalFileMimeType: proposalFileMimeType || '',
+        proposalFile: attachProposal ? (proposalFile || 'Proposal.pdf') : '',
+        proposalFileData: attachProposal ? proposalFileData : '',
+        proposalFileMimeType: attachProposal ? proposalFileMimeType : '',
         channel: mode, // 'whatsapp' or 'both'
         cc: cc.trim()
       };
@@ -325,7 +353,9 @@ export default function EmailHubPage() {
         const trackUrl = `${liveDomain}/api/emails/track/download?id=${data.email._id}`;
 
         // Construct the professional WhatsApp message text with clean formatting
-        const whatsappText = `Hi ${activeRecipient.firstName || 'Client'},\n\nI hope you are doing well!\n\nI have prepared a detailed proposal for *${activeRecipient.company || 'your company'}*.\n\nPlease click the secure link below to view and download the official document directly on your screen:\n👉 ${trackUrl}\n\nLooking forward to your thoughts!\n\nBest regards,\nSales Team`;
+        const whatsappText = attachProposal
+          ? `Hi ${activeRecipient.firstName || 'Client'},\n\nI hope you are doing well!\n\nI have prepared a detailed proposal for *${activeRecipient.company || 'your company'}*.\n\nPlease click the secure link below to view and download the official document directly on your screen:\n👉 ${trackUrl}\n\nLooking forward to your thoughts!\n\nBest regards,\nSales Team`
+          : `Hi ${activeRecipient.firstName || 'Client'},\n\nI hope you are doing well!\n\nI wanted to follow up regarding our corporate CRM implementation services for *${activeRecipient.company || 'your company'}*.\n\nPlease let me know if you would like to schedule a brief call to discuss how we can help your team.\n\nBest regards,\nSales Team`;
 
         // Format phone number to clean digits
         const cleanPhone = phone.replace(/[^0-9]/g, '');
@@ -450,6 +480,33 @@ export default function EmailHubPage() {
     return { label: 'General', color: 'bg-slate-100 text-slate-700 border-slate-200' };
   };
 
+  // Selected target recipient display details
+  const selectedRecipient = activeTab === 'leads'
+    ? leads.find(l => l._id === targetId)
+    : contacts.find(c => c._id === targetId);
+
+  const displaySelectedRecipient = () => {
+    if (!selectedRecipient) return 'Select a target recipient...';
+    return `${selectedRecipient.firstName || ''} ${selectedRecipient.lastName || ''} - ${selectedRecipient.company || ''} (${selectedRecipient.email || 'No email'})`;
+  };
+
+  // Filtered recipients inside the searchable dropdown
+  const filteredRecipients = activeTab === 'leads'
+    ? leads.filter(l => {
+        const fullName = `${l.firstName || ''} ${l.lastName || ''}`.toLowerCase();
+        const company = (l.company || '').toLowerCase();
+        const email = (l.email || '').toLowerCase();
+        const query = recipientSearchQuery.toLowerCase();
+        return fullName.includes(query) || company.includes(query) || email.includes(query);
+      })
+    : contacts.filter(c => {
+        const fullName = `${c.firstName || ''} ${c.lastName || ''}`.toLowerCase();
+        const company = (c.company || '').toLowerCase();
+        const email = (c.email || '').toLowerCase();
+        const query = recipientSearchQuery.toLowerCase();
+        return fullName.includes(query) || company.includes(query) || email.includes(query);
+      });
+
 
 
   return (
@@ -550,48 +607,76 @@ export default function EmailHubPage() {
 
         <form onSubmit={handleSendEmail} className="space-y-4 text-left">
           {/* Recipient Dropdown Selection */}
-          <div>
+          <div className="relative" ref={dropdownRef}>
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
               Target Recipient ({activeTab === 'leads' ? 'Leads Directory' : 'Contacts Directory'})
             </label>
-            {activeTab === 'leads' ? (
-              leads.length === 0 ? (
-                <div className="text-xs text-rose-500 bg-rose-50 p-2.5 rounded-lg border border-rose-100 flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  No leads exist in the directory. Please create a lead first!
-                </div>
-              ) : (
-                <select
-                  value={targetId}
-                  onChange={(e) => setTargetId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-indigo-500 transition"
-                >
-                  {leads.map(l => (
-                    <option key={l._id} value={l._id}>
-                      {l.firstName} {l.lastName} - {l.company} ({l.email || 'No email'})
-                    </option>
-                  ))}
-                </select>
-              )
+            {((activeTab === 'leads' && leads.length === 0) || (activeTab === 'contacts' && contacts.length === 0)) ? (
+              <div className="text-xs text-rose-500 bg-rose-50 p-2.5 rounded-lg border border-rose-100 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                No {activeTab} exist in the directory. Please create a {activeTab === 'leads' ? 'lead' : 'contact'} first!
+              </div>
             ) : (
-              contacts.length === 0 ? (
-                <div className="text-xs text-rose-500 bg-rose-50 p-2.5 rounded-lg border border-rose-100 flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  No contacts exist in the directory. Please create a contact first!
-                </div>
-              ) : (
-                <select
-                  value={targetId}
-                  onChange={(e) => setTargetId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-teal-500 transition"
+              <div>
+                {/* Trigger Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs font-semibold text-slate-700 flex justify-between items-center cursor-pointer transition focus:border-indigo-500 focus:outline-none"
                 >
-                  {contacts.map(c => (
-                    <option key={c._id} value={c._id}>
-                      {c.firstName} {c.lastName} - {c.company} ({c.email || 'No email'})
-                    </option>
-                  ))}
-                </select>
-              )
+                  <span className="truncate">{displaySelectedRecipient()}</span>
+                  <ChevronDown className="h-4 w-4 text-slate-400 shrink-0 ml-2" />
+                </button>
+
+                {/* Dropdown Menu Popover */}
+                {isDropdownOpen && (
+                  <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden flex flex-col">
+                    {/* Search Input Box */}
+                    <div className="px-3 py-2 border-b border-slate-100 bg-slate-50">
+                      <input
+                        type="text"
+                        value={recipientSearchQuery}
+                        onChange={(e) => setRecipientSearchQuery(e.target.value)}
+                        placeholder="Search by name, company, or email..."
+                        className="w-full bg-white border border-slate-200 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:border-indigo-500 transition"
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* Options List */}
+                    <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+                      {filteredRecipients.length === 0 ? (
+                        <div className="px-3.5 py-2.5 text-xs text-slate-400 italic text-center">
+                          No matching recipients found
+                        </div>
+                      ) : (
+                        filteredRecipients.map((r) => {
+                          const isSelected = r._id === targetId;
+                          return (
+                            <div
+                              key={r._id}
+                              onClick={() => {
+                                setTargetId(r._id);
+                                setIsDropdownOpen(false);
+                              }}
+                              className={`px-3.5 py-2.5 text-xs cursor-pointer flex flex-col items-start transition hover:bg-indigo-50/50 ${
+                                isSelected ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-slate-700'
+                              }`}
+                            >
+                              <span className="font-extrabold text-slate-800">
+                                {r.firstName || ''} {r.lastName || ''}
+                              </span>
+                              <span className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                                {r.company || 'No Company'} | {r.email || 'No Email'}
+                              </span>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -628,36 +713,59 @@ export default function EmailHubPage() {
           {/* Proposal File and Subject */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
-                Embedded Proposal Document (Innonsh-Style)
-              </label>
-              <div className="relative flex items-center gap-2">
-                <label className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-350 rounded-lg text-xs font-bold text-slate-705 cursor-pointer transition active:scale-95">
-                  <FileText className="h-4 w-4 text-indigo-500" />
-                  Choose File
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                  Embedded Proposal Document (Innonsh-Style)
                 </label>
-                {proposalFileData ? (
-                  <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-1.5 rounded-lg text-[10px] font-extrabold max-w-[180px] truncate">
-                    <span className="truncate">📎 {proposalFile}</span>
-                    <button
-                      type="button"
-                      onClick={handleRemoveFile}
-                      className="text-rose-500 hover:text-rose-700 font-bold shrink-0 ml-1 cursor-pointer"
-                      title="Remove File"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-[10px] text-slate-400 italic">No real file selected (default tracked PDF will be used)</span>
-                )}
+                <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={attachProposal}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setAttachProposal(checked);
+                      if (!checked) {
+                        handleRemoveFile();
+                      }
+                    }}
+                    className="rounded border-slate-300 text-indigo-650 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <span className="text-[10px] font-bold text-indigo-600">Attach Proposal</span>
+                </label>
               </div>
+              {attachProposal ? (
+                <div className="relative flex items-center gap-2">
+                  <label className="flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-350 rounded-lg text-xs font-bold text-slate-705 cursor-pointer transition active:scale-95">
+                    <FileText className="h-4 w-4 text-indigo-500" />
+                    Choose File
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                  {proposalFileData ? (
+                    <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-1.5 rounded-lg text-[10px] font-extrabold max-w-[180px] truncate">
+                      <span className="truncate">📎 {proposalFile}</span>
+                      <button
+                        type="button"
+                        onClick={handleRemoveFile}
+                        className="text-rose-500 hover:text-rose-700 font-bold shrink-0 ml-1 cursor-pointer"
+                        title="Remove File"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 italic">No real file selected (default tracked PDF will be used)</span>
+                  )}
+                </div>
+              ) : (
+                <div className="text-[10px] text-slate-400 italic bg-slate-50 border border-dashed border-slate-200 rounded-lg p-2.5">
+                  No proposal attached. Email will be sent as a direct communication.
+                </div>
+              )}
             </div>
 
             <div>
@@ -668,8 +776,8 @@ export default function EmailHubPage() {
                 type="text"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                placeholder="Proposal Estimate for {{company}}"
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-indigo-500 transition"
+                placeholder={attachProposal ? "Proposal Estimate for {{company}}" : "Follow up regarding CRM implementation"}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-xs font-medium text-slate-700 focus:outline-none focus:border-indigo-500 transition"
               />
             </div>
           </div>

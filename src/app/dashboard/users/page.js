@@ -16,7 +16,9 @@ import {
   ShieldCheck,
   Clock,
   UserCog,
-  UserMinus
+  UserMinus,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export default function UsersDirectoryPage() {
@@ -30,6 +32,7 @@ export default function UsersDirectoryPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState('sales_rep');
   const [submitting, setSubmitting] = useState(false);
   const [toastText, setToastText] = useState('');
@@ -98,6 +101,7 @@ export default function UsersDirectoryPage() {
         setName('');
         setEmail('');
         setPassword('');
+        setShowPassword(false);
         setRole('sales_rep');
         setDrawerOpen(false);
         showToast(`🎉 Representative "${data.user.name}" registered successfully!`);
@@ -295,7 +299,13 @@ export default function UsersDirectoryPage() {
         </div>
 
         <button
-          onClick={() => setDrawerOpen(true)}
+          onClick={() => {
+            setName('');
+            setEmail('');
+            setPassword('');
+            setShowPassword(false);
+            setDrawerOpen(true);
+          }}
           className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow transition cursor-pointer"
         >
           <UserPlus className="h-4.5 w-4.5" />
@@ -458,14 +468,20 @@ export default function UsersDirectoryPage() {
                 Register New System Representative
               </h2>
               <button 
-                onClick={() => setDrawerOpen(false)} 
+                onClick={() => {
+                  setName('');
+                  setEmail('');
+                  setPassword('');
+                  setShowPassword(false);
+                  setDrawerOpen(false);
+                }} 
                 className="p-1 rounded hover:bg-slate-200 text-slate-400"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleRegisterUser} className="p-6 space-y-4">
+            <form onSubmit={handleRegisterUser} className="p-6 space-y-4" autoComplete="off">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest block font-mono">Display Full Name</label>
                 <input
@@ -474,6 +490,7 @@ export default function UsersDirectoryPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="E.g. Vikramaditya Sen"
+                  autoComplete="new-name"
                   className="w-full px-3.5 py-2 text-xs font-bold bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition"
                 />
               </div>
@@ -486,20 +503,35 @@ export default function UsersDirectoryPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="employee@company.com"
+                  autoComplete="new-email"
                   className="w-full px-3.5 py-2 text-xs font-bold bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest block font-mono">Access Security Password</label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min 6 characters"
-                  className="w-full px-3.5 py-2 text-xs font-bold bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Min 6 characters"
+                    autoComplete="new-password"
+                    className="w-full pl-3.5 pr-10 py-2 text-xs font-bold bg-slate-50 hover:bg-slate-100/70 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition duration-150"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1.5">
