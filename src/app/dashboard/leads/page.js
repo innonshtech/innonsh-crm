@@ -173,6 +173,7 @@ export default function LeadsPage() {
   const [editLeadCustomFields, setEditLeadCustomFields] = useState([]);
   const [editLeadCustomData, setEditLeadCustomData] = useState({});
   const [editLeadIsPublic, setEditLeadIsPublic] = useState(false);
+  const [selectedLeads, setSelectedLeads] = useState([]);
 
   // Convert Deal Form state
   const [dealTitle, setDealTitle] = useState('');
@@ -645,6 +646,52 @@ export default function LeadsPage() {
     }
   };
 
+  // Selection toggle for single lead
+  const handleToggleSelectLead = (leadId) => {
+    if (selectedLeads.includes(leadId)) {
+      setSelectedLeads(selectedLeads.filter(id => id !== leadId));
+    } else {
+      setSelectedLeads([...selectedLeads, leadId]);
+    }
+  };
+
+  // Selection toggle for all leads on the current page
+  const handleToggleSelectAll = () => {
+    if (selectedLeads.length === currentLeads.length) {
+      setSelectedLeads([]);
+    } else {
+      setSelectedLeads(currentLeads.map(l => l._id));
+    }
+  };
+
+  // Bulk Delete implementation
+  const handleBulkDelete = async () => {
+    if (selectedLeads.length === 0) return;
+    if (!window.confirm(`Are you absolutely sure you want to permanently delete the ${selectedLeads.length} selected leads?`)) return;
+
+    setActionLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      await Promise.all(
+        selectedLeads.map(async (leadId) => {
+          const res = await fetch(`/api/leads/${leadId}`, { method: 'DELETE' });
+          if (res.ok) successCount++;
+          else errorCount++;
+        })
+      );
+      setSelectedLeads([]);
+      fetchLeads();
+      showToast(`🗑️ Bulk Delete Complete! Successfully deleted ${successCount} leads.`);
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+      showToast('⚠️ Error occurred during bulk delete.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // --- DYNAMIC UPLOAD ATTACHMENT ACTION ---
   const handleUploadAttachment = async (e) => {
     const file = e.target.files[0];
@@ -893,34 +940,130 @@ export default function LeadsPage() {
         return;
       }
 
-      // Parse headers to match columns
-      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+      // Helper function to split CSV line respecting double quotes
+      const splitCSVLine = (line) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result.map(val => val.replace(/^"|"$/g, '').trim()); // Strip outer quotes
+      };
+
+      // Parse headers dynamically
+      const headers = splitCSVLine(lines[0]);
       
+      const getIndex = (name) => {
+        return headers.findIndex(h => h.toLowerCase().replace(/[\s_-]/g, '') === name.toLowerCase().replace(/[\s_-]/g, ''));
+      };
+
+      const idxFirstName = getIndex('First Name');
+      const idxLastName = getIndex('Last Name');
+      const idxCompany = getIndex('Company');
+      const idxDesignation = getIndex('Designation');
+      const idxEmail = getIndex('Email');
+      const idxPhone = getIndex('Phone');
+      const idxWhatsApp = getIndex('WhatsApp');
+      const idxCity = getIndex('City');
+      const idxState = getIndex('State');
+      const idxCountry = getIndex('Country');
+      const idxPriority = getIndex('Priority');
+      const idxStatus = getIndex('Lead Status');
+      const idxSource = getIndex('Lead Source');
+      const idxLostReason = getIndex('Lost Reason');
+      const idxProduct = getIndex('Interested Product');
+      const idxFollowUpType = getIndex('Follow-up Type');
+      const idxFollowUpDate = getIndex('Next Follow-up Date');
+      const idxIndustry = getIndex('Industry');
+      const idxRevenue = getIndex('Estimated Revenue');
+      const idxEmployees = getIndex('Employee Count');
+      const idxRequirements = getIndex('Requirements');
+
+      const standardIndices = [
+        idxFirstName, idxLastName, idxCompany, idxDesignation, idxEmail,
+        idxPhone, idxWhatsApp, idxCity, idxState, idxCountry, idxPriority,
+        idxStatus, idxSource, idxLostReason, idxProduct, idxFollowUpType,
+        idxFollowUpDate, idxIndustry, idxRevenue, idxEmployees, idxRequirements
+      ].filter(idx => idx !== -1);
+
       let successCount = 0;
       let errorCount = 0;
       let lastError = '';
 
       // Loop through rows
       for (let i = 1; i < lines.length; i++) {
-        const columns = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
+        const columns = splitCSVLine(lines[i]);
         if (columns.length < 2) continue;
 
-        // Build lead body mapping standard fields
+        // Build lead body mapping dynamically matched fields
         const leadBody = {
-          firstName: columns[0] || 'Unknown',
-          lastName: columns[1] || '',
-          company: columns[2] || 'Offline Campaign',
-          designation: columns[3] || '',
-          email: columns[4] || '',
-          phone: columns[5] || '',
-          whatsapp: columns[6] || '',
-          city: columns[7] || '',
-          state: columns[8] || '',
-          priority: columns[9] || 'Warm',
-          status: 'New',
-          source: 'Other',
-          requirements: 'Uploaded via Bulk Import CSV Campaign.'
+          firstName: idxFirstName !== -1 && columns[idxFirstName] ? columns[idxFirstName] : 'Unknown',
+          lastName: idxLastName !== -1 && columns[idxLastName] ? columns[idxLastName] : '',
+          company: idxCompany !== -1 && columns[idxCompany] ? columns[idxCompany] : 'Offline Campaign',
+          designation: idxDesignation !== -1 && columns[idxDesignation] ? columns[idxDesignation] : '',
+          email: idxEmail !== -1 && columns[idxEmail] ? columns[idxEmail] : '',
+          phone: idxPhone !== -1 && columns[idxPhone] ? columns[idxPhone] : '',
+          whatsapp: idxWhatsApp !== -1 && columns[idxWhatsApp] ? columns[idxWhatsApp] : '',
+          city: idxCity !== -1 && columns[idxCity] ? columns[idxCity] : '',
+          state: idxState !== -1 && columns[idxState] ? columns[idxState] : '',
+          country: idxCountry !== -1 && columns[idxCountry] ? columns[idxCountry] : 'India',
+          priority: idxPriority !== -1 && columns[idxPriority] ? columns[idxPriority] : 'Warm',
+          status: idxStatus !== -1 && columns[idxStatus] ? columns[idxStatus] : 'New',
+          source: idxSource !== -1 && columns[idxSource] ? columns[idxSource] : 'Other',
+          lostReason: idxLostReason !== -1 && columns[idxLostReason] ? columns[idxLostReason] : '',
+          interestedProduct: idxProduct !== -1 && columns[idxProduct] ? columns[idxProduct] : '',
+          followUpType: idxFollowUpType !== -1 && columns[idxFollowUpType] ? columns[idxFollowUpType] : 'None',
+          nextFollowUpDate: idxFollowUpDate !== -1 && columns[idxFollowUpDate] ? localToUTCISO(columns[idxFollowUpDate]) : null,
+          industry: idxIndustry !== -1 && columns[idxIndustry] ? columns[idxIndustry] : '',
+          annualRevenue: idxRevenue !== -1 && Number(columns[idxRevenue]) ? Number(columns[idxRevenue]) : 0,
+          employeeCount: idxEmployees !== -1 && Number(columns[idxEmployees]) ? Number(columns[idxEmployees]) : 0,
+          requirements: idxRequirements !== -1 && columns[idxRequirements] ? columns[idxRequirements] : 'Uploaded via Bulk Import CSV Campaign.',
+          customFields: [],
+          custom_data: {}
         };
+
+        // Extract extra custom field columns
+        for (let j = 0; j < columns.length; j++) {
+          if (standardIndices.includes(j)) continue; // Skip standard fields
+          
+          const headerName = headers[j];
+          const colValue = columns[j];
+          if (headerName && colValue) {
+            // Find matching definition in orgCustomFieldDefs by label or key
+            const matchedDef = orgCustomFieldDefs.find(
+              def => def.field_label.toLowerCase() === headerName.toLowerCase() ||
+                     def.field_key.toLowerCase() === headerName.toLowerCase()
+            );
+            if (matchedDef) {
+              leadBody.customFields.push({
+                label: matchedDef.field_label,
+                value: colValue
+              });
+              leadBody.custom_data[matchedDef.field_key] = colValue;
+            } else {
+              // Ignore system tracking columns or headers without value
+              const ignoredHeaders = ['sr.no', 'sent date', 'follow-ups reminders', '46162', 'linkedin msg(for connection)', 'website', 'year of establishment', '_1', '_2', '_3', '_4', '_5', '_6', '_7', '_8', '_9', '_10', '_11', '_12', '_13', '_14', '_15', '_16'];
+              if (!ignoredHeaders.includes(headerName.toLowerCase())) {
+                leadBody.customFields.push({
+                  label: headerName,
+                  value: colValue
+                });
+              }
+            }
+          }
+        }
 
         try {
           const res = await fetch('/api/leads', {
@@ -945,7 +1088,7 @@ export default function LeadsPage() {
       if (errorCount === 0) {
         showToast(`🎉 Bulk Upload Complete! Imported ${successCount} Leads successfully.`);
       } else {
-        showToast(`Uploaded ${successCount} leads. ${errorCount} warnings (e.g. Duplicates ignored).`, 'error');
+        showToast(`Uploaded ${successCount} leads. ${errorCount} warnings (e.g. Duplicates ignored/errors).`, 'error');
       }
     };
     reader.readAsText(file);
@@ -1018,6 +1161,19 @@ export default function LeadsPage() {
             <Download className="h-4 w-4" />
             Export CSV
           </button>
+
+          {/* Bulk Delete Selected */}
+          {selectedLeads.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 border border-rose-200 hover:border-rose-300 text-rose-700 hover:text-rose-800 text-xs font-bold rounded-lg transition active:scale-95 cursor-pointer shadow-sm animate-in fade-in"
+              title="Delete all selected leads"
+            >
+              <Trash2 className="h-4 w-4 text-rose-600" />
+              Delete Selected ({selectedLeads.length})
+            </button>
+          )}
 
           {/* Create Lead */}
           <button
@@ -1204,6 +1360,14 @@ export default function LeadsPage() {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
+                  <th className="px-4 py-4 text-center w-10">
+                    <input
+                      type="checkbox"
+                      checked={currentLeads.length > 0 && selectedLeads.length === currentLeads.length}
+                      onChange={handleToggleSelectAll}
+                      className="rounded accent-emerald-500 cursor-pointer w-4 h-4"
+                    />
+                  </th>
                   <th className="px-6 py-4">{currentUser?.sectorConfig?.leadTerm || 'Lead'} Name</th>
                   <th className="px-6 py-4">Organization & Designation</th>
                   <th className="px-6 py-4">Priority & Warning</th>
@@ -1230,6 +1394,14 @@ export default function LeadsPage() {
                         isSlipping ? 'border-l-4 border-l-amber-500/80 bg-amber-50/5' : ''
                       }`}
                     >
+                      <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedLeads.includes(lead._id)}
+                          onChange={() => handleToggleSelectLead(lead._id)}
+                          className="rounded accent-emerald-500 cursor-pointer w-4 h-4"
+                        />
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2.5">
                           <div className={`flex h-8 w-8 items-center justify-center rounded-full font-bold text-xs border shadow-sm ${

@@ -75,6 +75,7 @@ export default function DashboardSummaryPage() {
   const [recentDeals, setRecentDeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
+  const [leadsTab, setLeadsTab] = useState('today'); // 'today' | 'recent'
 
   // Raw cached data collections for dynamic client-side filtering
   const [rawLeads, setRawLeads] = useState([]);
@@ -127,8 +128,8 @@ export default function DashboardSummaryPage() {
           setRawInvoices(allInvoices);
         }
 
-        setRecentLeads(allLeads.slice(0, 4));
-        setRecentDeals(allDeals.slice(0, 4));
+        setRecentLeads(allLeads.slice(0, 30));
+        setRecentDeals(allDeals.slice(0, 30));
       } catch (err) {
         console.error('Fetch dashboard stats failed:', err);
       } finally {
@@ -305,6 +306,13 @@ export default function DashboardSummaryPage() {
   };
 
   const isRep = currentUser?.role === 'sales_rep';
+
+  const todayStr = new Date().toDateString();
+  const todaysLeads = recentLeads.filter(lead => {
+    const createdDate = new Date(lead.createdAt || lead.created_at);
+    return createdDate.toDateString() === todayStr;
+  });
+  const displayedLeads = leadsTab === 'today' ? todaysLeads : recentLeads;
   const monthlyTarget = 250000;
   const targetPercent = Math.min(100, Math.round((stats.wonValuation / monthlyTarget) * 100));
   const strokeRadius = 40;
@@ -647,30 +655,54 @@ export default function DashboardSummaryPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Recent Leads */}
-              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
-                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                  <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="h-4 w-4 text-slate-400" />
-                    My Recent Leads
-                  </h3>
-                  <Link href="/dashboard/leads" className="text-[10px] text-indigo-600 hover:text-indigo-500 font-black flex items-center gap-0.5 group">
-                    View All
-                    <ArrowRight className="h-3.5 w-3.5 text-indigo-650 group-hover:translate-x-0.5 transition" />
-                  </Link>
+              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-100 gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-4 w-4 text-slate-400 animate-pulse" />
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      My Recent Leads
+                    </h3>
+                  </div>
+                  
+                  {/* Tab Switcher */}
+                  <div className="flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 shadow-sm shrink-0">
+                    <button
+                      onClick={() => setLeadsTab('today')}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                        leadsTab === 'today'
+                          ? 'bg-white text-indigo-650 shadow-sm border border-slate-100'
+                          : 'text-slate-500 hover:text-slate-850'
+                      }`}
+                    >
+                      Today ({todaysLeads.length})
+                    </button>
+                    <button
+                      onClick={() => setLeadsTab('recent')}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                        leadsTab === 'recent'
+                          ? 'bg-white text-indigo-650 shadow-sm border border-slate-100'
+                          : 'text-slate-500 hover:text-slate-855'
+                      }`}
+                    >
+                      Recent
+                    </button>
+                  </div>
                 </div>
 
-                <div className="divide-y divide-slate-100 space-y-3 pt-1">
-                  {recentLeads.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">No assigned leads. Ask your manager to assign leads.</p>
+                <div className="divide-y divide-slate-100 space-y-3 pt-1 max-h-[340px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-track]:bg-transparent">
+                  {displayedLeads.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic py-6 text-center">
+                      {leadsTab === 'today' ? "No leads registered today." : "No assigned leads. Ask your manager to assign leads."}
+                    </p>
                   ) : (
-                    recentLeads.map((lead) => (
-                      <div key={lead._id} className="flex items-center justify-between pt-3 first:pt-0">
+                    displayedLeads.map((lead) => (
+                      <div key={lead._id || lead.id} className="flex items-center justify-between pt-3 first:pt-0">
                         <div className="flex items-center gap-2.5">
-                          <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-650 text-xs font-bold flex items-center justify-center border border-slate-200">
-                            {lead.firstName[0]}
+                          <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-655 text-xs font-bold flex items-center justify-center border border-slate-200">
+                            {(lead.firstName || lead.first_name || '?')[0]}
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-slate-800">{lead.firstName} {lead.lastName}</p>
+                            <p className="text-xs font-bold text-slate-800">{lead.firstName || lead.first_name} {lead.lastName || lead.last_name}</p>
                             <p className="text-[10px] text-slate-400 mt-0.5 font-semibold">{lead.company}</p>
                           </div>
                         </div>
@@ -695,21 +727,21 @@ export default function DashboardSummaryPage() {
                     <Clock className="h-4 w-4 text-slate-400" />
                     My Active Deals
                   </h3>
-                  <Link href="/dashboard/deals" className="text-[10px] text-indigo-600 hover:text-indigo-500 font-black flex items-center gap-0.5 group">
+                  <Link href="/dashboard/deals" className="text-[10px] text-indigo-650 hover:text-indigo-600 font-black flex items-center gap-0.5 group">
                     View Pipeline
                     <ArrowRight className="h-3.5 w-3.5 text-indigo-650 group-hover:translate-x-0.5 transition" />
                   </Link>
                 </div>
 
-                <div className="divide-y divide-slate-100 space-y-3 pt-1">
+                <div className="divide-y divide-slate-100 space-y-3 pt-1 max-h-[340px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-track]:bg-transparent">
                   {recentDeals.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">No deals active in pipeline.</p>
+                    <p className="text-xs text-slate-400 italic py-6 text-center">No deals active in pipeline.</p>
                   ) : (
                     recentDeals.map((deal) => (
-                      <div key={deal._id} className="flex items-center justify-between pt-3 first:pt-0">
+                      <div key={deal._id || deal.id} className="flex items-center justify-between pt-3 first:pt-0">
                         <div className="flex items-center gap-2.5">
                           <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-650 text-xs font-bold flex items-center justify-center border border-slate-200">
-                            {deal.title[0]}
+                            {(deal.title || '?')[0]}
                           </div>
                           <div>
                             <p className="text-xs font-bold text-slate-800 truncate max-w-[100px]">{deal.title}</p>
@@ -783,7 +815,7 @@ export default function DashboardSummaryPage() {
               ) : (
                 <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-150 text-[10px] font-semibold text-slate-600 flex items-center gap-1.5 w-full justify-center">
                   <Award className="h-4.5 w-4.5 text-indigo-600" />
-                  <span>⚡ Keep selling, you're doing great!</span>
+                  <span>⚡ Keep selling, you&apos;re doing great!</span>
                 </div>
               )}
             </div>
@@ -1193,30 +1225,54 @@ export default function DashboardSummaryPage() {
       {/* --- GRID SUMMARY: RECENT LEADS & RECENT DEALS --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Active Leads */}
-        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
-          <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-slate-400" />
-              Latest Leads Added
-            </h3>
-            <Link href="/dashboard/leads" className="text-xs text-emerald-600 hover:text-emerald-500 font-bold flex items-center gap-0.5 group">
-              View All Leads
-              <ArrowRight className="h-3.5 w-3.5 text-emerald-600 group-hover:translate-x-0.5 transition" />
-            </Link>
+        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-100 gap-2">
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-slate-400 animate-pulse" />
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Latest Leads Added
+              </h3>
+            </div>
+            
+            {/* Tab Switcher */}
+            <div className="flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 shadow-sm shrink-0">
+              <button
+                onClick={() => setLeadsTab('today')}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                  leadsTab === 'today'
+                    ? 'bg-white text-emerald-600 shadow-sm border border-slate-100'
+                    : 'text-slate-500 hover:text-slate-850'
+                }`}
+              >
+                Today ({todaysLeads.length})
+              </button>
+              <button
+                onClick={() => setLeadsTab('recent')}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                  leadsTab === 'recent'
+                    ? 'bg-white text-emerald-600 shadow-sm border border-slate-100'
+                    : 'text-slate-500 hover:text-slate-855'
+                }`}
+              >
+                Recent
+              </button>
+            </div>
           </div>
 
-          <div className="divide-y divide-slate-100 space-y-3 pt-1">
-            {recentLeads.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No leads registered yet. Click shortcut buttons to log one.</p>
+          <div className="divide-y divide-slate-100 space-y-3 pt-1 max-h-[340px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-track]:bg-transparent">
+            {displayedLeads.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-6 text-center">
+                {leadsTab === 'today' ? "No leads registered today." : "No leads registered yet. Click shortcut buttons to log one."}
+              </p>
             ) : (
-              recentLeads.map((lead) => (
-                <div key={lead._id} className="flex items-center justify-between pt-3 first:pt-0">
+              displayedLeads.map((lead) => (
+                <div key={lead._id || lead.id} className="flex items-center justify-between pt-3 first:pt-0">
                   <div className="flex items-center gap-2.5">
                     <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-600 text-xs font-bold flex items-center justify-center border border-slate-200">
-                      {lead.firstName[0]}
+                      {(lead.firstName || lead.first_name || '?')[0]}
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-800">{lead.firstName} {lead.lastName}</p>
+                      <p className="text-xs font-bold text-slate-800">{lead.firstName || lead.first_name} {lead.lastName || lead.last_name}</p>
                       <p className="text-[10px] text-slate-400 mt-0.5 font-semibold">{lead.company}</p>
                     </div>
                   </div>
@@ -1247,15 +1303,15 @@ export default function DashboardSummaryPage() {
             </Link>
           </div>
 
-          <div className="divide-y divide-slate-100 space-y-3 pt-1">
+          <div className="divide-y divide-slate-100 space-y-3 pt-1 max-h-[340px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-track]:bg-transparent">
             {recentDeals.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No converted deal pipeline cards currently registered.</p>
+              <p className="text-xs text-slate-400 italic py-6 text-center">No converted deal pipeline cards currently registered.</p>
             ) : (
               recentDeals.map((deal) => (
-                <div key={deal._id} className="flex items-center justify-between pt-3 first:pt-0">
+                <div key={deal._id || deal.id} className="flex items-center justify-between pt-3 first:pt-0">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-650 text-xs font-bold flex items-center justify-center border border-slate-200">
-                      {deal.title[0]}
+                    <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-655 text-xs font-bold flex items-center justify-center border border-slate-200">
+                      {(deal.title || '?')[0]}
                     </div>
                     <div>
                       <p className="text-xs font-bold text-slate-800 truncate max-w-[150px]">{deal.title}</p>
