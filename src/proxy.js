@@ -15,7 +15,7 @@ const publicRoutes = [
 // Note: In Serverless/Edge, this state is isolated per instance.
 const rateLimitMap = new Map();
 
-export async function middleware(req) {
+export async function proxy(req) {
   const { pathname } = req.nextUrl;
 
   const origin = req.headers.get('origin');
@@ -47,8 +47,8 @@ export async function middleware(req) {
     return NextResponse.json({ error: 'CORS Blocked: Access Denied' }, { status: 403 });
   }
 
-  // Define actual middleware flow logic
-  const response = await handleMiddlewareLogic(req);
+  // Define actual proxy flow logic
+  const response = await handleProxyLogic(req);
 
   // Append CORS headers on successful/error api responses
   if (isApi && origin && (allowedOrigins.includes(origin) || isWebhook)) {
@@ -59,7 +59,7 @@ export async function middleware(req) {
   return response;
 }
 
-async function handleMiddlewareLogic(req) {
+async function handleProxyLogic(req) {
   const { pathname } = req.nextUrl;
 
   // We only want to protect API routes for now
@@ -158,7 +158,7 @@ async function handleMiddlewareLogic(req) {
         },
       });
     } catch (error) {
-      console.error('Middleware JWT verification failed:', error.message);
+      console.error('Proxy JWT verification failed:', error.message);
       return NextResponse.json({ error: 'Unauthorized. Invalid or expired token.' }, { status: 401 });
     }
   }
