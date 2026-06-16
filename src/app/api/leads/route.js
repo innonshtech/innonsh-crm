@@ -370,36 +370,7 @@ export async function POST(req) {
 
     // 3. DYNAMIC DATABASE DETECTOR
     if (supabase) {
-      // Duplicate checks
-      if (email && email.trim()) {
-        const { data: duplicateEmail } = await supabase
-          .from('leads')
-          .select('id')
-          .eq('email', email.toLowerCase().trim())
-          .maybeSingle();
-
-        if (duplicateEmail) {
-          return NextResponse.json(
-            { error: `Duplicate Check Warning: A lead record with Email "${email.trim()}" already exists.` },
-            { status: 400 }
-          );
-        }
-      }
-
-      if (phone && phone.trim()) {
-        const { data: duplicatePhone } = await supabase
-          .from('leads')
-          .select('id')
-          .eq('phone', phone.trim())
-          .maybeSingle();
-
-        if (duplicatePhone) {
-          return NextResponse.json(
-            { error: `Duplicate Check Warning: A lead record with Phone "${phone.trim()}" already exists.` },
-            { status: 400 }
-          );
-        }
-      }
+      // Duplicate checks bypassed
 
       let finalAssignee = assignedTo || null;
 
@@ -545,25 +516,7 @@ export async function POST(req) {
       // Fallback to MongoDB
       await connectToDatabase();
 
-      if (email && email.trim()) {
-        const duplicateEmail = await Lead.findOne({ email: email.toLowerCase().trim() });
-        if (duplicateEmail) {
-          return NextResponse.json(
-            { error: `Duplicate Check Warning: A lead record with Email "${email.trim()}" already exists.` },
-            { status: 400 }
-          );
-        }
-      }
-
-      if (phone && phone.trim()) {
-        const duplicatePhone = await Lead.findOne({ phone: phone.trim() });
-        if (duplicatePhone) {
-          return NextResponse.json(
-            { error: `Duplicate Check Warning: A lead record with Phone "${phone.trim()}" already exists.` },
-            { status: 400 }
-          );
-        }
-      }
+      // Duplicate checks bypassed
 
       const leadData = {
         firstName,

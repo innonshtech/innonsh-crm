@@ -1005,37 +1005,158 @@ export default function LeadsPage() {
       let errorCount = 0;
       let lastError = '';
 
+      const cleanCSVValue = (val) => {
+        if (!val) return '';
+        const clean = val.trim();
+        const lower = clean.toLowerCase();
+        if (lower === 'na' || lower === 'n/a' || lower === 'null' || lower === 'undefined') {
+          return '';
+        }
+        return clean;
+      };
+
+      const getVal = (cols, idx, fallback = '') => {
+        if (idx === -1 || !cols[idx]) return fallback;
+        return cleanCSVValue(cols[idx]) || fallback;
+      };
+
+      const normalizePriority = (val) => {
+        const clean = (val || '').trim();
+        const lower = clean.toLowerCase();
+        if (lower === 'hot') return 'Hot';
+        if (lower === 'cold') return 'Cold';
+        return 'Warm'; // default / fallback
+      };
+
+      const normalizeStatus = (val) => {
+        const clean = (val || '').trim();
+        const lower = clean.toLowerCase();
+        if (lower === 'contacted') return 'Contacted';
+        if (lower === 'attempted') return 'Attempted';
+        if (lower === 'qualified') return 'Qualified';
+        if (lower === 'lost') return 'Lost';
+        return 'New'; // default / fallback
+      };
+
+      const normalizeSource = (val) => {
+        const clean = (val || '').trim();
+        const lower = clean.toLowerCase().replace(/[\s_-]/g, '');
+        const sourcesMap = {
+          website: 'Website',
+          referral: 'Referral',
+          linkedin: 'LinkedIn',
+          coldcall: 'Cold Call',
+          emailcampaign: 'Email Campaign',
+          socialmedia: 'Social Media',
+          tradeshow: 'Trade Show',
+          other: 'Other'
+        };
+        return sourcesMap[lower] || 'Other'; // default / fallback
+      };
+
+      const parseEmails = (emailStr) => {
+        const clean = cleanCSVValue(emailStr);
+        if (!clean) return { primary: '', alternatives: [] };
+        const parts = clean.split(/[,\;\n\/|]+/).map(e => e.trim()).filter(Boolean);
+        
+        const parsedParts = [];
+        const originalParts = [];
+        for (const part of parts) {
+          // Strip text in parentheses, e.g. "email (descr)" -> "email"
+          const stripped = part.replace(/\s*\(.*?\)\s*/g, '').trim();
+          if (stripped) {
+            parsedParts.push(stripped);
+            originalParts.push(part);
+          }
+        }
+        
+        const validEmails = parsedParts.filter(e => e.includes('@'));
+        if (validEmails.length === 0) {
+          return { primary: '', alternatives: parts };
+        }
+        
+        const primaryEmail = validEmails[0];
+        const primaryIndex = parsedParts.indexOf(primaryEmail);
+        const alternatives = originalParts.filter((_, idx) => idx !== primaryIndex);
+        
+        return {
+          primary: primaryEmail,
+          alternatives: alternatives
+        };
+      };
+
+      const parsePhones = (phoneStr) => {
+        const clean = cleanCSVValue(phoneStr);
+        if (!clean) return { primary: '', alternatives: [] };
+        const parts = clean.split(/[,\;\n\/|]+/).map(p => p.trim()).filter(Boolean);
+        
+        const cleanedParts = [];
+        const originalParts = [];
+        for (const part of parts) {
+          const digitsOnly = part.replace(/[^\d+]+/g, '');
+          if (digitsOnly) {
+            cleanedParts.push(digitsOnly);
+            originalParts.push(part);
+          }
+        }
+        
+        if (cleanedParts.length === 0) return { primary: '', alternatives: [] };
+        
+        const primary = cleanedParts[0].substring(0, 20);
+        const alternatives = originalParts.slice(1);
+        
+        if (originalParts[0].length > 20 && originalParts[0] !== primary) {
+          alternatives.unshift(originalParts[0]);
+        }
+        
+        return { primary, alternatives };
+      };
+
       // Loop through rows
       for (let i = 1; i < lines.length; i++) {
         const columns = splitCSVLine(lines[i]);
         if (columns.length < 2) continue;
 
+        const parsedEmails = parseEmails(idxEmail !== -1 ? columns[idxEmail] : '');
+        const parsedPhones = parsePhones(idxPhone !== -1 ? columns[idxPhone] : '');
+
         // Build lead body mapping dynamically matched fields
         const leadBody = {
-          firstName: idxFirstName !== -1 && columns[idxFirstName] ? columns[idxFirstName] : 'Unknown',
-          lastName: idxLastName !== -1 && columns[idxLastName] ? columns[idxLastName] : '',
-          company: idxCompany !== -1 && columns[idxCompany] ? columns[idxCompany] : 'Offline Campaign',
-          designation: idxDesignation !== -1 && columns[idxDesignation] ? columns[idxDesignation] : '',
-          email: idxEmail !== -1 && columns[idxEmail] ? columns[idxEmail] : '',
-          phone: idxPhone !== -1 && columns[idxPhone] ? columns[idxPhone] : '',
-          whatsapp: idxWhatsApp !== -1 && columns[idxWhatsApp] ? columns[idxWhatsApp] : '',
-          city: idxCity !== -1 && columns[idxCity] ? columns[idxCity] : '',
-          state: idxState !== -1 && columns[idxState] ? columns[idxState] : '',
-          country: idxCountry !== -1 && columns[idxCountry] ? columns[idxCountry] : 'India',
-          priority: idxPriority !== -1 && columns[idxPriority] ? columns[idxPriority] : 'Warm',
-          status: idxStatus !== -1 && columns[idxStatus] ? columns[idxStatus] : 'New',
-          source: idxSource !== -1 && columns[idxSource] ? columns[idxSource] : 'Other',
-          lostReason: idxLostReason !== -1 && columns[idxLostReason] ? columns[idxLostReason] : '',
-          interestedProduct: idxProduct !== -1 && columns[idxProduct] ? columns[idxProduct] : '',
-          followUpType: idxFollowUpType !== -1 && columns[idxFollowUpType] ? columns[idxFollowUpType] : 'None',
-          nextFollowUpDate: idxFollowUpDate !== -1 && columns[idxFollowUpDate] ? localToUTCISO(columns[idxFollowUpDate]) : null,
-          industry: idxIndustry !== -1 && columns[idxIndustry] ? columns[idxIndustry] : '',
-          annualRevenue: idxRevenue !== -1 && Number(columns[idxRevenue]) ? Number(columns[idxRevenue]) : 0,
-          employeeCount: idxEmployees !== -1 && Number(columns[idxEmployees]) ? Number(columns[idxEmployees]) : 0,
-          requirements: idxRequirements !== -1 && columns[idxRequirements] ? columns[idxRequirements] : 'Uploaded via Bulk Import CSV Campaign.',
+          firstName: getVal(columns, idxFirstName, 'Unknown'),
+          lastName: getVal(columns, idxLastName),
+          company: getVal(columns, idxCompany, 'Offline Campaign'),
+          designation: getVal(columns, idxDesignation),
+          email: parsedEmails.primary,
+          phone: parsedPhones.primary,
+          whatsapp: getVal(columns, idxWhatsApp),
+          city: getVal(columns, idxCity),
+          state: getVal(columns, idxState),
+          country: getVal(columns, idxCountry, 'India'),
+          priority: normalizePriority(idxPriority !== -1 ? columns[idxPriority] : ''),
+          status: normalizeStatus(idxStatus !== -1 ? columns[idxStatus] : ''),
+          source: normalizeSource(idxSource !== -1 ? columns[idxSource] : ''),
+          lostReason: getVal(columns, idxLostReason),
+          interestedProduct: getVal(columns, idxProduct),
+          followUpType: getVal(columns, idxFollowUpType, 'None'),
+          nextFollowUpDate: idxFollowUpDate !== -1 && cleanCSVValue(columns[idxFollowUpDate]) ? localToUTCISO(cleanCSVValue(columns[idxFollowUpDate])) : null,
+          industry: getVal(columns, idxIndustry),
+          annualRevenue: idxRevenue !== -1 && Number(cleanCSVValue(columns[idxRevenue])) ? Number(cleanCSVValue(columns[idxRevenue])) : 0,
+          employeeCount: idxEmployees !== -1 && Number(cleanCSVValue(columns[idxEmployees])) ? Number(cleanCSVValue(columns[idxEmployees])) : 0,
+          requirements: getVal(columns, idxRequirements, 'Uploaded via Bulk Import CSV Campaign.'),
           customFields: [],
           custom_data: {}
         };
+
+        if (parsedEmails.alternatives.length > 0) {
+          const valStr = parsedEmails.alternatives.join(', ');
+          leadBody.customFields.push({ label: 'Alternative Email', value: valStr });
+          leadBody.custom_data['Alternative Email'] = valStr;
+        }
+        if (parsedPhones.alternatives.length > 0) {
+          const valStr = parsedPhones.alternatives.join(', ');
+          leadBody.customFields.push({ label: 'Alternative Phone', value: valStr });
+          leadBody.custom_data['Alternative Phone'] = valStr;
+        }
 
         // Extract extra custom field columns
         for (let j = 0; j < columns.length; j++) {
@@ -1044,6 +1165,7 @@ export default function LeadsPage() {
           const headerName = headers[j];
           const colValue = columns[j];
           if (headerName && colValue) {
+            const cleanedColValue = cleanCSVValue(colValue);
             // Find matching definition in orgCustomFieldDefs by label or key
             const matchedDef = orgCustomFieldDefs.find(
               def => def.field_label.toLowerCase() === headerName.toLowerCase() ||
@@ -1052,16 +1174,16 @@ export default function LeadsPage() {
             if (matchedDef) {
               leadBody.customFields.push({
                 label: matchedDef.field_label,
-                value: colValue
+                value: cleanedColValue
               });
-              leadBody.custom_data[matchedDef.field_key] = colValue;
+              leadBody.custom_data[matchedDef.field_key] = cleanedColValue;
             } else {
               // Ignore system tracking columns or headers without value
               const ignoredHeaders = ['sr.no', 'sent date', 'follow-ups reminders', '46162', 'linkedin msg(for connection)', 'website', 'year of establishment', '_1', '_2', '_3', '_4', '_5', '_6', '_7', '_8', '_9', '_10', '_11', '_12', '_13', '_14', '_15', '_16'];
               if (!ignoredHeaders.includes(headerName.toLowerCase())) {
                 leadBody.customFields.push({
                   label: headerName,
-                  value: colValue
+                  value: cleanedColValue
                 });
               }
             }
@@ -1091,7 +1213,7 @@ export default function LeadsPage() {
       if (errorCount === 0) {
         showToast(`🎉 Bulk Upload Complete! Imported ${successCount} Leads successfully.`);
       } else {
-        showToast(`Uploaded ${successCount} leads. ${errorCount} warnings (e.g. Duplicates ignored/errors).`, 'error');
+        showToast(`Uploaded ${successCount} leads. ${errorCount} warnings (e.g. ${lastError || 'Duplicates ignored/errors'}).`, 'error');
       }
     };
     reader.readAsText(file);

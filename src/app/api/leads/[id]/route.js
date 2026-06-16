@@ -169,38 +169,7 @@ export async function PUT(req, { params }) {
         return NextResponse.json({ error: 'Company name cannot be empty.' }, { status: 400 });
       }
 
-      // 1. BUSINESS RULE: Duplicate Check on updates
-      if (email !== undefined && email.trim() && email.toLowerCase().trim() !== existingLead.email) {
-        const { data: duplicateEmail } = await supabase
-          .from('leads')
-          .select('id')
-          .eq('email', email.toLowerCase().trim())
-          .neq('id', id)
-          .maybeSingle();
-
-        if (duplicateEmail) {
-          return NextResponse.json(
-            { error: `Duplicate Check Warning: Another lead record with Email "${email.trim()}" already exists.` },
-            { status: 400 }
-          );
-        }
-      }
-
-      if (phone !== undefined && phone.trim() && phone.trim() !== existingLead.phone) {
-        const { data: duplicatePhone } = await supabase
-          .from('leads')
-          .select('id')
-          .eq('phone', phone.trim())
-          .neq('id', id)
-          .maybeSingle();
-
-        if (duplicatePhone) {
-          return NextResponse.json(
-            { error: `Duplicate Check Warning: Another lead record with Phone "${phone.trim()}" already exists.` },
-            { status: 400 }
-          );
-        }
-      }
+      // Duplicate checks bypassed
 
       // Target status to evaluate for validations
       const targetStatus = status !== undefined ? status : existingLead.status;
@@ -451,26 +420,7 @@ export async function PUT(req, { params }) {
         return NextResponse.json({ error: 'Company name cannot be empty.' }, { status: 400 });
       }
 
-      // 1. BUSINESS RULE: Duplicate Check on updates
-      if (email !== undefined && email.trim() && email.toLowerCase().trim() !== lead.email) {
-        const duplicateEmail = await Lead.findOne({ email: email.toLowerCase().trim(), _id: { $ne: id } });
-        if (duplicateEmail) {
-          return NextResponse.json(
-            { error: `Duplicate Check Warning: Another lead record with Email "${email.trim()}" already exists.` },
-            { status: 400 }
-          );
-        }
-      }
-
-      if (phone !== undefined && phone.trim() && phone.trim() !== lead.phone) {
-        const duplicatePhone = await Lead.findOne({ phone: phone.trim(), _id: { $ne: id } });
-        if (duplicatePhone) {
-          return NextResponse.json(
-            { error: `Duplicate Check Warning: Another lead record with Phone "${phone.trim()}" already exists.` },
-            { status: 400 }
-          );
-        }
-      }
+      // Duplicate checks bypassed
 
       // Target status to evaluate for validations
       const targetStatus = status !== undefined ? status : lead.status;
