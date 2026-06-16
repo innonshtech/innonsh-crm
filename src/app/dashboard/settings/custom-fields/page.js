@@ -128,7 +128,7 @@ export default function CustomFieldsPage() {
         if (!res.ok) { router.push('/login'); return; }
         const { user: u } = await res.json();
         if (!u || u.isSuperAdmin) { router.push('/dashboard'); return; }
-        if (u.role !== 'owner') { router.push('/dashboard'); return; }
+        if (u.role !== 'owner' && u.role !== 'sales_admin' && u.role !== 'sales_rep') { router.push('/dashboard'); return; }
         setUser(u);
       } catch { router.push('/login'); }
       finally { setLoading(false); }

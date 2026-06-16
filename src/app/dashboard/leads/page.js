@@ -97,6 +97,7 @@ export default function LeadsPage() {
   const [priorityFilter, setPriorityFilter] = useState('');
   const [repFilter, setRepFilter] = useState('');
   const [sortBy, setSortBy] = useState('newest');
+  const [productFilter, setProductFilter] = useState('');
 
   // Selected lead for detail slide-over
   const [selectedLead, setSelectedLead] = useState(null);
@@ -251,6 +252,7 @@ export default function LeadsPage() {
       if (priorityFilter) queryParams.append('priority', priorityFilter);
       if (repFilter) queryParams.append('assignedTo', repFilter);
       if (sortBy) queryParams.append('sortBy', sortBy);
+      if (productFilter) queryParams.append('interestedProduct', productFilter);
 
       const res = await fetch(`/api/leads?${queryParams.toString()}`);
       if (res.ok) {
@@ -268,7 +270,7 @@ export default function LeadsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLeads();
-  }, [search, statusFilter, sourceFilter, priorityFilter, repFilter, sortBy]);
+  }, [search, statusFilter, sourceFilter, priorityFilter, repFilter, sortBy, productFilter]);
 
   // Handle lead select and fetch details
   const handleSelectLead = async (leadId) => {
@@ -883,7 +885,7 @@ export default function LeadsPage() {
     const headers = [
       'First Name', 'Last Name', 'Company', 'Designation', 'Email', 
       'Phone', 'WhatsApp', 'WhatsApp Contacted', 'City', 'State', 
-      'Priority', 'Status', 'Lost Reason', 'Source', 'Revenue', 
+      'Priority', 'Status', 'Lost Reason', 'Source', 'Interested Product', 'Revenue', 
       'Next Follow-Up Date', 'Created At'
     ];
 
@@ -903,6 +905,7 @@ export default function LeadsPage() {
       l.status,
       `"${l.lostReason || ''}"`,
       l.source,
+      `"${l.interestedProduct || 'General Inquiry'}"`,
       l.annualRevenue || 0,
       l.nextFollowUpDate ? safeNewDate(l.nextFollowUpDate).toLocaleString() : 'Not Scheduled',
       safeNewDate(l.createdAt).toLocaleDateString()
@@ -1234,7 +1237,7 @@ export default function LeadsPage() {
       </div>
 
       {/* --- FILTER & SEARCH BAR --- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4 p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
         {/* Search */}
         <div className="relative">
           <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 pointer-events-none">
@@ -1296,6 +1299,26 @@ export default function LeadsPage() {
             <option value="LinkedIn">LinkedIn</option>
             <option value="Google Search">Google Search</option>
             <option value="Event">Event/Exhibition</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        {/* Interested Product Filter */}
+        <div>
+          <select
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-600 transition cursor-pointer font-bold"
+          >
+            <option value="">All Products</option>
+            <option value="General Inquiry">General Inquiry</option>
+            <option value="Innonsh Website">Innonsh Website</option>
+            <option value="Innonsh SprintOS">Innonsh SprintOS</option>
+            <option value="Innonsh ClinicPro">Innonsh ClinicPro</option>
+            <option value="Innonsh WorkGrid">Innonsh WorkGrid</option>
+            <option value="Innonsh TinySteps">Innonsh TinySteps</option>
+            <option value="Salon Management ERP">Salon Management ERP</option>
+            <option value="Innonsh LeadGen">Innonsh LeadGen</option>
             <option value="Other">Other</option>
           </select>
         </div>
@@ -1372,7 +1395,7 @@ export default function LeadsPage() {
                   <th className="px-6 py-4">Organization & Designation</th>
                   <th className="px-6 py-4">Priority & Warning</th>
                   <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">WhatsApp Log</th>
+                  <th className="px-6 py-4">Interested Product</th>
                   <th className="px-6 py-4">Assigned To</th>
                   <th className="px-6 py-4">Latest Communication</th>
                   <th className="px-6 py-4 text-right">Action</th>
@@ -1455,23 +1478,10 @@ export default function LeadsPage() {
                           <span className="block text-[9px] text-rose-500 font-bold mt-1">Reason: {lead.lostReason}</span>
                         )}
                       </td>
-                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                        {lead.whatsapp ? (
-                          <button
-                            onClick={() => triggerWhatsApp(lead)}
-                            className={`flex items-center gap-1 px-2.5 py-1 rounded border text-[10px] font-bold transition shadow-sm ${
-                              lead.whatsappContacted 
-                                ? 'bg-emerald-500 hover:bg-emerald-650 text-white border-emerald-600' 
-                                : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-150 text-emerald-700'
-                            }`}
-                            title={lead.whatsappContacted ? "Outreach initiated (Double Tick)" : "Click to chat on WhatsApp"}
-                          >
-                            <MessageCircle className="h-3.5 w-3.5" />
-                            {lead.whatsappContacted ? '✓✓ Contacted' : 'Chat'}
-                          </button>
-                        ) : (
-                          <span className="text-slate-400 italic">No WhatsApp</span>
-                        )}
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-100 uppercase tracking-wide">
+                          📦 {lead.interestedProduct || 'General Inquiry'}
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         {lead.assignedTo ? (

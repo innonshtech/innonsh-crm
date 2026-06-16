@@ -380,7 +380,7 @@ export default function DashboardLayout({ children }) {
         { name: 'Settings', href: '/dashboard/settings', icon: Settings },
         { name: 'Profile', href: '/dashboard/profile', icon: UserCog },
         { name: 'CRM Add-ons', href: '/dashboard/settings/modules', icon: Sparkles, ownerOnly: true },
-        { name: 'Custom Fields', href: '/dashboard/settings/custom-fields', icon: Settings2, ownerOnly: true },
+        { name: 'Custom Fields', href: '/dashboard/settings/custom-fields', icon: Settings2 },
       ]
     }
   ];
@@ -471,6 +471,7 @@ export default function DashboardLayout({ children }) {
             'Documents Vault',
             'Possessions',
             'Support Tickets',
+            'Custom Fields',
           ];
           return managerAllowed.includes(link.name);
         }
@@ -505,6 +506,7 @@ export default function DashboardLayout({ children }) {
             'Documents Vault',
             'Possessions',
             'Support Tickets',
+            'Custom Fields',
           ];
           return repAllowed.includes(link.name);
         }

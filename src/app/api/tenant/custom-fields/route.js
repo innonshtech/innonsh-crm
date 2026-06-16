@@ -41,8 +41,8 @@ export async function POST(req) {
   try {
     const user = getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-    if (user.role !== 'owner') {
-      return NextResponse.json({ error: 'Only organization owners can manage custom fields.' }, { status: 403 });
+    if (user.role !== 'owner' && user.role !== 'sales_admin' && user.role !== 'sales_rep') {
+      return NextResponse.json({ error: 'Only authorized organization users can manage custom fields.' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -109,8 +109,8 @@ export async function PUT(req) {
   try {
     const user = getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-    if (user.role !== 'owner') {
-      return NextResponse.json({ error: 'Only organization owners can manage custom fields.' }, { status: 403 });
+    if (user.role !== 'owner' && user.role !== 'sales_admin' && user.role !== 'sales_rep') {
+      return NextResponse.json({ error: 'Only authorized organization users can manage custom fields.' }, { status: 403 });
     }
 
     const { id, field_label, options, is_required, placeholder, icon_name } = await req.json();
@@ -148,8 +148,8 @@ export async function DELETE(req) {
   try {
     const user = getUserFromRequest(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-    if (user.role !== 'owner') {
-      return NextResponse.json({ error: 'Only organization owners can manage custom fields.' }, { status: 403 });
+    if (user.role !== 'owner' && user.role !== 'sales_admin' && user.role !== 'sales_rep') {
+      return NextResponse.json({ error: 'Only authorized organization users can manage custom fields.' }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);

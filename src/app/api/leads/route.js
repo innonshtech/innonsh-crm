@@ -36,6 +36,7 @@ export async function GET(req) {
     const assignedToFilter = searchParams.get('assignedTo') || '';
     const sortBy = searchParams.get('sortBy') || 'newest';
     const isProductLeads = searchParams.get('isProductLeads') === 'true';
+    const interestedProduct = searchParams.get('interestedProduct') || '';
 
     let leads = [];
 
@@ -110,12 +111,19 @@ export async function GET(req) {
       if (priority) {
         queryBuilder = queryBuilder.eq('priority', priority);
       }
+      if (interestedProduct) {
+        if (interestedProduct === 'General Inquiry') {
+          queryBuilder = queryBuilder.or('interested_product.eq.,interested_product.is.null');
+        } else {
+          queryBuilder = queryBuilder.eq('interested_product', interestedProduct);
+        }
+      }
 
       // Dynamic Search on columns
       if (search) {
         const s = `%${search}%`;
         queryBuilder = queryBuilder.or(
-          `first_name.ilike.${s},last_name.ilike.${s},company.ilike.${s},email.ilike.${s},phone.ilike.${s},designation.ilike.${s},city.ilike.${s},industry.ilike.${s}`
+          `first_name.ilike.${s},last_name.ilike.${s},company.ilike.${s},email.ilike.${s},phone.ilike.${s},designation.ilike.${s},city.ilike.${s},industry.ilike.${s},interested_product.ilike.${s}`
         );
       }
 
@@ -214,6 +222,17 @@ export async function GET(req) {
         query.source = source;
       }
       if (priority) query.priority = priority;
+      if (interestedProduct) {
+        if (interestedProduct === 'General Inquiry') {
+          query.$or = [
+            { interestedProduct: '' },
+            { interestedProduct: null },
+            { interestedProduct: { $exists: false } }
+          ];
+        } else {
+          query.interestedProduct = interestedProduct;
+        }
+      }
 
       if (search) {
         query.$or = [
@@ -225,6 +244,7 @@ export async function GET(req) {
           { designation: { $regex: search, $options: 'i' } },
           { city: { $regex: search, $options: 'i' } },
           { industry: { $regex: search, $options: 'i' } },
+          { interestedProduct: { $regex: search, $options: 'i' } },
         ];
       }
 
