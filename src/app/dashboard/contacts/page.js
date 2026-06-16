@@ -1200,20 +1200,22 @@ export default function ContactsPage() {
                 {(!selectedContact.notes || selectedContact.notes.length === 0) ? (
                   <p className="text-xs text-slate-400 italic">No activities logged yet.</p>
                 ) : (
-                  <div className="relative border-l border-slate-200 ml-3 pl-5 space-y-5 py-1">
-                    {selectedContact.notes.map((note) => (
-                      <div key={note._id || note.id} className="relative group">
-                        <div className="absolute -left-[26px] top-1.5 h-3.5 w-3.5 rounded-full bg-white border-2 border-emerald-500 flex items-center justify-center group-hover:scale-110 transition shadow-sm"></div>
-                        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 shadow-sm space-y-1">
-                          <p className="text-xs text-slate-700 font-bold leading-relaxed">{note.text}</p>
-                          <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-1.5 border-t border-slate-100 font-semibold">
-                            <span className="text-slate-500">{note.createdByName}</span>
-                            <span>•</span>
-                            <span>{safeNewDate(note.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                  <div className="max-h-[300px] overflow-y-auto pr-2 bg-slate-50/20 p-2 rounded-lg scrollbar-thin">
+                    <div className="relative border-l border-slate-200 ml-1.5 pl-4 space-y-4 py-1">
+                      {selectedContact.notes.map((note) => (
+                        <div key={note._id || note.id} className="relative group">
+                          <div className="absolute -left-[23px] top-1.5 h-3 w-3 rounded-full bg-white border-2 border-emerald-500 flex items-center justify-center group-hover:scale-110 transition shadow-sm"></div>
+                          <div className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm space-y-1">
+                            <p className="text-xs text-slate-700 font-bold leading-relaxed">{note.text}</p>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-1.5 border-t border-slate-100 font-semibold">
+                              <span className="text-slate-500">{note.createdByName}</span>
+                              <span>•</span>
+                              <span>{safeNewDate(note.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

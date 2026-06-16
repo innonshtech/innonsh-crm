@@ -2009,9 +2009,9 @@ export default function LeadsPage() {
                   </h3>
                   <div className="grid grid-cols-2 gap-3 p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
                     {selectedLead.customFields.map((field) => (
-                      <div key={field._id} className="space-y-0.5">
+                      <div key={field._id} className="space-y-0.5 min-w-0">
                         <span className="text-[10px] font-bold text-slate-400 uppercase truncate block">{field.label}</span>
-                        <span className="text-xs font-extrabold text-slate-800">{field.value}</span>
+                        <span className="text-xs font-extrabold text-slate-800 break-all">{field.value}</span>
                       </div>
                     ))}
                   </div>
@@ -2030,9 +2030,9 @@ export default function LeadsPage() {
                       const value = selectedLead.customData[fieldDef.field_key];
                       if (value === undefined || value === null || value === '') return null;
                       return (
-                        <div key={fieldDef.id} className="space-y-0.5">
+                        <div key={fieldDef.id} className="space-y-0.5 min-w-0">
                           <span className="text-[10px] font-bold text-slate-400 uppercase truncate block">{fieldDef.field_label}</span>
-                          <span className="text-xs font-extrabold text-slate-800">{String(value)}</span>
+                          <span className="text-xs font-extrabold text-slate-800 break-all">{String(value)}</span>
                         </div>
                       );
                     })}
@@ -2142,21 +2142,23 @@ export default function LeadsPage() {
                 {selectedLead.notes.length === 0 ? (
                   <p className="text-xs text-slate-400 italic pl-1 font-semibold">No activities logged yet. Write a follow-up above to start tracking client history.</p>
                 ) : (
-                  <div className="relative border-l border-slate-200 ml-3 pl-5 space-y-5 py-1">
-                    {selectedLead.notes.map((note) => (
-                      <div key={note._id} className="relative group">
-                        <div className="absolute -left-[26px] top-1.5 h-3.5 w-3.5 rounded-full bg-white border-2 border-emerald-500 flex items-center justify-center group-hover:scale-110 transition shadow-sm"></div>
-                        
-                        <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-sm space-y-1">
-                          <p className="text-xs text-slate-700 font-bold leading-relaxed">{note.text}</p>
-                          <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-1.5 border-t border-slate-100 font-semibold">
-                            <span className="text-slate-500">{note.createdByName}</span>
-                            <span>•</span>
-                            <span>{safeNewDate(note.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                  <div className="max-h-[300px] overflow-y-auto pr-2 border border-slate-200 rounded-xl bg-slate-50/50 p-4 scrollbar-thin shadow-inner">
+                    <div className="relative border-l border-slate-200 ml-1.5 pl-4 space-y-4 py-1">
+                      {selectedLead.notes.map((note) => (
+                        <div key={note._id} className="relative group">
+                          <div className="absolute -left-[23px] top-1.5 h-3 w-3 rounded-full bg-white border-2 border-emerald-500 flex items-center justify-center group-hover:scale-110 transition shadow-sm"></div>
+                          
+                          <div className="p-3 rounded-lg bg-white border border-slate-200 shadow-sm space-y-1">
+                            <p className="text-xs text-slate-700 font-bold leading-relaxed">{note.text}</p>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-1.5 border-t border-slate-100 font-semibold">
+                              <span className="text-slate-500">{note.createdByName}</span>
+                              <span>•</span>
+                              <span>{safeNewDate(note.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -3178,7 +3180,36 @@ export default function LeadsPage() {
                 </div>
               </div>
 
-
+              {/* Dynamic Custom Fields Editor */}
+              {editLeadCustomFields && editLeadCustomFields.length > 0 && (
+                <div className="space-y-4">
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest block font-mono border-b border-slate-100 pb-1">Custom Business Fields</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {editLeadCustomFields.map((field, index) => (
+                      <div key={index}>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{field.label}</label>
+                        <input
+                          type="text"
+                          value={field.value || ''}
+                          onChange={(e) => {
+                            const updated = [...editLeadCustomFields];
+                            updated[index].value = e.target.value;
+                            setEditLeadCustomFields(updated);
+                            
+                            // Also update customData key matching this label
+                            const key = field.label.toLowerCase().replace(/[\s_-]/g, '');
+                            setEditLeadCustomData(prev => ({
+                              ...prev,
+                              [key]: e.target.value
+                            }));
+                          }}
+                          className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-800 transition"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Submit Buttons */}
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
