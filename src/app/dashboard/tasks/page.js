@@ -54,6 +54,8 @@ export default function TasksPage() {
   const [associatedType, setAssociatedType] = useState('None'); // 'None', 'Lead', 'Contact'
   const [associatedLeadId, setAssociatedLeadId] = useState('');
   const [associatedContactId, setAssociatedContactId] = useState('');
+  const [leadSearchQuery, setLeadSearchQuery] = useState('');
+  const [contactSearchQuery, setContactSearchQuery] = useState('');
 
   const [formError, setFormError] = useState('');
 
@@ -236,6 +238,8 @@ export default function TasksPage() {
       setAssociatedContactId('');
     }
 
+    setLeadSearchQuery('');
+    setContactSearchQuery('');
     setFormError('');
     setEditModalOpen(true);
   };
@@ -322,6 +326,8 @@ export default function TasksPage() {
     setAssociatedType('None');
     setAssociatedLeadId('');
     setAssociatedContactId('');
+    setLeadSearchQuery('');
+    setContactSearchQuery('');
     setFormError('');
   };
 
@@ -367,6 +373,26 @@ export default function TasksPage() {
     return new Date(task.dueDate) < today;
   };
   const overdueCount = tasks.filter(t => isOverdue(t)).length;
+
+  const filteredLeads = leads.filter(l => {
+    const q = leadSearchQuery.toLowerCase();
+    return (
+      (l.firstName || '').toLowerCase().includes(q) ||
+      (l.lastName || '').toLowerCase().includes(q) ||
+      (l.company || '').toLowerCase().includes(q) ||
+      (l.email || '').toLowerCase().includes(q)
+    );
+  });
+
+  const filteredContacts = contacts.filter(c => {
+    const q = contactSearchQuery.toLowerCase();
+    return (
+      (c.firstName || '').toLowerCase().includes(q) ||
+      (c.lastName || '').toLowerCase().includes(q) ||
+      (c.company || '').toLowerCase().includes(q) ||
+      (c.email || '').toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="space-y-6 relative h-full">
@@ -751,40 +777,192 @@ export default function TasksPage() {
                 </div>
 
                 {/* Conditional Lead List Dropdown */}
-                {associatedType === 'Lead' && (
-                  <div className="animate-in fade-in duration-200">
-                    <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">Select Lead *</label>
-                    <select
-                      value={associatedLeadId}
-                      required={associatedType === 'Lead'}
-                      onChange={(e) => setAssociatedLeadId(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded bg-white border border-slate-200 focus:outline-none text-xs text-slate-700"
-                    >
-                      <option value="">-- Choose Prospect Lead --</option>
-                      {leads.map((l) => (
-                        <option key={l._id} value={l._id}>{l.firstName} ({l.company})</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                {associatedType === 'Lead' && (() => {
+                  const selectedLead = leads.find(l => l._id === associatedLeadId);
+                  if (selectedLead) {
+                    return (
+                      <div className="animate-in fade-in duration-200">
+                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">Linked Lead</label>
+                        <div className="flex items-center justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="h-7 w-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                              {selectedLead.firstName ? selectedLead.firstName[0].toUpperCase() : 'L'}
+                            </div>
+                            <div className="text-left min-w-0">
+                              <h4 className="text-[11px] font-bold text-slate-800 truncate">
+                                {selectedLead.firstName} {selectedLead.lastName || ''}
+                              </h4>
+                              <p className="text-[9px] text-slate-500 truncate">{selectedLead.company || 'No Company'}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setAssociatedLeadId(''); setLeadSearchQuery(''); }}
+                            className="p-1 rounded hover:bg-blue-100 text-blue-600 hover:text-blue-800 transition cursor-pointer shrink-0"
+                            title="Unlink Lead"
+                          >
+                            <X className="h-4 w-4 stroke-[2.5]" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="animate-in fade-in duration-200 space-y-2">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider">Select Lead *</label>
+                      
+                      {/* Search Input */}
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400 pointer-events-none">
+                          <Search className="h-3.5 w-3.5" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Search by name, company..."
+                          value={leadSearchQuery}
+                          onChange={(e) => setLeadSearchQuery(e.target.value)}
+                          className="w-full pl-8 pr-8 py-1.5 rounded bg-white border border-slate-200 focus:border-blue-500 focus:outline-none text-xs text-slate-805 placeholder-slate-400 transition"
+                        />
+                        {leadSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setLeadSearchQuery('')}
+                            className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-455 hover:text-slate-655"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Scrollable Card List */}
+                      <div className="max-h-40 overflow-y-auto space-y-1 pr-1 border border-slate-200 rounded-lg p-1 bg-white">
+                        {filteredLeads.length === 0 ? (
+                          <div className="text-center py-4 text-[10px] text-slate-400 font-bold">
+                            No matching leads found
+                          </div>
+                        ) : (
+                          filteredLeads.map((l) => (
+                            <div
+                              key={l._id}
+                              onClick={() => setAssociatedLeadId(l._id)}
+                              className="flex items-center justify-between p-1.5 rounded border border-transparent hover:border-blue-200 hover:bg-blue-50/25 transition cursor-pointer text-left group"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="h-6 w-6 shrink-0 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-500 group-hover:text-blue-700 flex items-center justify-center text-[10px] font-bold">
+                                  {l.firstName ? l.firstName[0].toUpperCase() : 'L'}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-bold text-slate-700 group-hover:text-blue-900 truncate">
+                                    {l.firstName} {l.lastName || ''}
+                                  </p>
+                                  <p className="text-[8px] text-slate-400 truncate">{l.company || 'No Company'}</p>
+                                </div>
+                              </div>
+                              {l.priority && (
+                                <span className={`text-[7px] font-extrabold px-1 rounded uppercase shrink-0 ${
+                                  l.priority === 'Hot' ? 'bg-rose-50 text-rose-600' :
+                                  l.priority === 'Warm' ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-600'
+                                }`}>
+                                  {l.priority}
+                                </span>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Conditional Contact List Dropdown */}
-                {associatedType === 'Contact' && (
-                  <div className="animate-in fade-in duration-200">
-                    <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">Select Converted Contact *</label>
-                    <select
-                      value={associatedContactId}
-                      required={associatedType === 'Contact'}
-                      onChange={(e) => setAssociatedContactId(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded bg-white border border-slate-200 focus:outline-none text-xs text-slate-700"
-                    >
-                      <option value="">-- Choose Permanent Customer --</option>
-                      {contacts.map((c) => (
-                        <option key={c._id} value={c._id}>{c.firstName} ({c.company})</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                {associatedType === 'Contact' && (() => {
+                  const selectedContact = contacts.find(c => c._id === associatedContactId);
+                  if (selectedContact) {
+                    return (
+                      <div className="animate-in fade-in duration-200">
+                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">Linked Contact</label>
+                        <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl shadow-sm">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="h-7 w-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                              {selectedContact.firstName ? selectedContact.firstName[0].toUpperCase() : 'C'}
+                            </div>
+                            <div className="text-left min-w-0">
+                              <h4 className="text-[11px] font-bold text-slate-800 truncate">
+                                {selectedContact.firstName} {selectedContact.lastName || ''}
+                              </h4>
+                              <p className="text-[9px] text-slate-500 truncate">{selectedContact.company || 'No Company'}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setAssociatedContactId(''); setContactSearchQuery(''); }}
+                            className="p-1 rounded hover:bg-emerald-100 text-emerald-600 hover:text-emerald-800 transition cursor-pointer shrink-0"
+                            title="Unlink Contact"
+                          >
+                            <X className="h-4 w-4 stroke-[2.5]" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="animate-in fade-in duration-200 space-y-2">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider">Select Contact *</label>
+                      
+                      {/* Search Input */}
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400 pointer-events-none">
+                          <Search className="h-3.5 w-3.5" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Search by name, company..."
+                          value={contactSearchQuery}
+                          onChange={(e) => setContactSearchQuery(e.target.value)}
+                          className="w-full pl-8 pr-8 py-1.5 rounded bg-white border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-805 placeholder-slate-400 transition"
+                        />
+                        {contactSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setContactSearchQuery('')}
+                            className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-455 hover:text-slate-655"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Scrollable Card List */}
+                      <div className="max-h-40 overflow-y-auto space-y-1 pr-1 border border-slate-200 rounded-lg p-1 bg-white">
+                        {filteredContacts.length === 0 ? (
+                          <div className="text-center py-4 text-[10px] text-slate-400 font-bold">
+                            No matching contacts found
+                          </div>
+                        ) : (
+                          filteredContacts.map((c) => (
+                            <div
+                              key={c._id}
+                              onClick={() => setAssociatedContactId(c._id)}
+                              className="flex items-center justify-between p-1.5 rounded border border-transparent hover:border-emerald-200 hover:bg-emerald-50/25 transition cursor-pointer text-left group"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="h-6 w-6 shrink-0 rounded-full bg-slate-100 group-hover:bg-emerald-100 text-slate-500 group-hover:text-emerald-700 flex items-center justify-center text-[10px] font-bold">
+                                  {c.firstName ? c.firstName[0].toUpperCase() : 'C'}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-bold text-slate-700 group-hover:text-emerald-900 truncate">
+                                    {c.firstName} {c.lastName || ''}
+                                  </p>
+                                  <p className="text-[8px] text-slate-400 truncate">{c.company || 'No Company'}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Notes */}
@@ -944,40 +1122,192 @@ export default function TasksPage() {
                 </div>
 
                 {/* Conditional Lead List Dropdown */}
-                {associatedType === 'Lead' && (
-                  <div className="animate-in fade-in duration-200">
-                    <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">Select Lead *</label>
-                    <select
-                      value={associatedLeadId}
-                      required={associatedType === 'Lead'}
-                      onChange={(e) => setAssociatedLeadId(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded bg-white border border-slate-200 focus:outline-none text-xs text-slate-700"
-                    >
-                      <option value="">-- Choose Prospect Lead --</option>
-                      {leads.map((l) => (
-                        <option key={l._id} value={l._id}>{l.firstName} ({l.company})</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                {associatedType === 'Lead' && (() => {
+                  const selectedLead = leads.find(l => l._id === associatedLeadId);
+                  if (selectedLead) {
+                    return (
+                      <div className="animate-in fade-in duration-200">
+                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">Linked Lead</label>
+                        <div className="flex items-center justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-xl shadow-sm">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="h-7 w-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                              {selectedLead.firstName ? selectedLead.firstName[0].toUpperCase() : 'L'}
+                            </div>
+                            <div className="text-left min-w-0">
+                              <h4 className="text-[11px] font-bold text-slate-800 truncate">
+                                {selectedLead.firstName} {selectedLead.lastName || ''}
+                              </h4>
+                              <p className="text-[9px] text-slate-500 truncate">{selectedLead.company || 'No Company'}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setAssociatedLeadId(''); setLeadSearchQuery(''); }}
+                            className="p-1 rounded hover:bg-blue-100 text-blue-650 hover:text-blue-850 transition cursor-pointer shrink-0"
+                            title="Unlink Lead"
+                          >
+                            <X className="h-4 w-4 stroke-[2.5]" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="animate-in fade-in duration-200 space-y-2">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider">Select Lead *</label>
+                      
+                      {/* Search Input */}
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400 pointer-events-none">
+                          <Search className="h-3.5 w-3.5" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Search by name, company..."
+                          value={leadSearchQuery}
+                          onChange={(e) => setLeadSearchQuery(e.target.value)}
+                          className="w-full pl-8 pr-8 py-1.5 rounded bg-white border border-slate-200 focus:border-blue-500 focus:outline-none text-xs text-slate-805 placeholder-slate-400 transition"
+                        />
+                        {leadSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setLeadSearchQuery('')}
+                            className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-455 hover:text-slate-655"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Scrollable Card List */}
+                      <div className="max-h-40 overflow-y-auto space-y-1 pr-1 border border-slate-200 rounded-lg p-1 bg-white">
+                        {filteredLeads.length === 0 ? (
+                          <div className="text-center py-4 text-[10px] text-slate-400 font-bold">
+                            No matching leads found
+                          </div>
+                        ) : (
+                          filteredLeads.map((l) => (
+                            <div
+                              key={l._id}
+                              onClick={() => setAssociatedLeadId(l._id)}
+                              className="flex items-center justify-between p-1.5 rounded border border-transparent hover:border-blue-200 hover:bg-blue-50/25 transition cursor-pointer text-left group"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="h-6 w-6 shrink-0 rounded-full bg-slate-100 group-hover:bg-blue-100 text-slate-500 group-hover:text-blue-700 flex items-center justify-center text-[10px] font-bold">
+                                  {l.firstName ? l.firstName[0].toUpperCase() : 'L'}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-bold text-slate-700 group-hover:text-blue-900 truncate">
+                                    {l.firstName} {l.lastName || ''}
+                                  </p>
+                                  <p className="text-[8px] text-slate-400 truncate">{l.company || 'No Company'}</p>
+                                </div>
+                              </div>
+                              {l.priority && (
+                                <span className={`text-[7px] font-extrabold px-1 rounded uppercase shrink-0 ${
+                                  l.priority === 'Hot' ? 'bg-rose-50 text-rose-600' :
+                                  l.priority === 'Warm' ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-600'
+                                }`}>
+                                  {l.priority}
+                                </span>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Conditional Contact List Dropdown */}
-                {associatedType === 'Contact' && (
-                  <div className="animate-in fade-in duration-200">
-                    <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">Select Converted Contact *</label>
-                    <select
-                      value={associatedContactId}
-                      required={associatedType === 'Contact'}
-                      onChange={(e) => setAssociatedContactId(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded bg-white border border-slate-200 focus:outline-none text-xs text-slate-700"
-                    >
-                      <option value="">-- Choose Permanent Customer --</option>
-                      {contacts.map((c) => (
-                        <option key={c._id} value={c._id}>{c.firstName} ({c.company})</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                {associatedType === 'Contact' && (() => {
+                  const selectedContact = contacts.find(c => c._id === associatedContactId);
+                  if (selectedContact) {
+                    return (
+                      <div className="animate-in fade-in duration-200">
+                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">Linked Contact</label>
+                        <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl shadow-sm">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="h-7 w-7 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                              {selectedContact.firstName ? selectedContact.firstName[0].toUpperCase() : 'C'}
+                            </div>
+                            <div className="text-left min-w-0">
+                              <h4 className="text-[11px] font-bold text-slate-800 truncate">
+                                {selectedContact.firstName} {selectedContact.lastName || ''}
+                              </h4>
+                              <p className="text-[9px] text-slate-500 truncate">{selectedContact.company || 'No Company'}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setAssociatedContactId(''); setContactSearchQuery(''); }}
+                            className="p-1 rounded hover:bg-emerald-100 text-emerald-600 hover:text-emerald-800 transition cursor-pointer shrink-0"
+                            title="Unlink Contact"
+                          >
+                            <X className="h-4 w-4 stroke-[2.5]" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="animate-in fade-in duration-200 space-y-2">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider">Select Contact *</label>
+                      
+                      {/* Search Input */}
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400 pointer-events-none">
+                          <Search className="h-3.5 w-3.5" />
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Search by name, company..."
+                          value={contactSearchQuery}
+                          onChange={(e) => setContactSearchQuery(e.target.value)}
+                          className="w-full pl-8 pr-8 py-1.5 rounded bg-white border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-805 placeholder-slate-400 transition"
+                        />
+                        {contactSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setContactSearchQuery('')}
+                            className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-455 hover:text-slate-655"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Scrollable Card List */}
+                      <div className="max-h-40 overflow-y-auto space-y-1 pr-1 border border-slate-200 rounded-lg p-1 bg-white">
+                        {filteredContacts.length === 0 ? (
+                          <div className="text-center py-4 text-[10px] text-slate-400 font-bold">
+                            No matching contacts found
+                          </div>
+                        ) : (
+                          filteredContacts.map((c) => (
+                            <div
+                              key={c._id}
+                              onClick={() => setAssociatedContactId(c._id)}
+                              className="flex items-center justify-between p-1.5 rounded border border-transparent hover:border-emerald-200 hover:bg-emerald-50/25 transition cursor-pointer text-left group"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="h-6 w-6 shrink-0 rounded-full bg-slate-100 group-hover:bg-emerald-100 text-slate-500 group-hover:text-emerald-700 flex items-center justify-center text-[10px] font-bold">
+                                  {c.firstName ? c.firstName[0].toUpperCase() : 'C'}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-bold text-slate-700 group-hover:text-emerald-900 truncate">
+                                    {c.firstName} {c.lastName || ''}
+                                  </p>
+                                  <p className="text-[8px] text-slate-400 truncate">{c.company || 'No Company'}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Notes */}
