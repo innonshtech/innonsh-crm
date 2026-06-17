@@ -75,6 +75,84 @@ const getCustomFieldIcon = (iconName) => {
   }
 };
 
+// Searchable & Scrollable select component matching Innonsh CRM design system
+function SearchableSelect({ value, onChange, options, placeholder, disabled }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+  const filteredOptions = options.filter((opt) =>
+    opt.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div ref={wrapperRef} className="relative w-full">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-left text-xs text-slate-700 hover:border-emerald-500 focus:border-emerald-500 focus:outline-none transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+      >
+        <span className="truncate">
+          {selectedOption ? selectedOption.label : placeholder || 'Select option...'}
+        </span>
+        <span className="text-[10px] text-slate-400 shrink-0 ml-2">▼</span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col">
+          <div className="p-2 border-b border-slate-100 bg-slate-50 shrink-0">
+            <input
+              type="text"
+              placeholder="Search team..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-md focus:border-emerald-500 focus:outline-none bg-white text-slate-700"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="overflow-y-auto py-1">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-4 text-xs text-slate-400 text-center">No team members found</div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setIsOpen(false);
+                    setSearch('');
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 text-xs transition flex items-center justify-between ${
+                    opt.value === value
+                      ? 'bg-emerald-50 text-emerald-700 font-bold'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {opt.value === value && <span className="text-emerald-600 font-bold ml-2">✓</span>}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function LeadsPage() {
   const router = useRouter();
   // Page core states
@@ -2625,22 +2703,22 @@ export default function LeadsPage() {
                       <div className="space-y-2">
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Allocate Lead To</label>
                         <div className="flex flex-col gap-2">
-                          <select
+                          <SearchableSelect
                             value={assignedTo}
                             disabled={autoAssign}
-                            onChange={(e) => setAssignedTo(e.target.value)}
-                            className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-600 transition disabled:opacity-50"
-                          >
-                            <option value="">👤 Assign to Me (Default)</option>
-                            <option value="all">🌐 Assign to All Sales Representatives (Shared Pool)</option>
-                            {salesReps
-                              .filter((rep) => rep.role !== 'owner')
-                              .map((rep) => (
-                                <option key={rep._id} value={rep._id}>
-                                  {rep.name} ({rep.role === 'sales_admin' ? 'Manager' : 'Rep'})
-                                </option>
-                              ))}
-                          </select>
+                            onChange={setAssignedTo}
+                            placeholder="👤 Assign to Me (Default)"
+                            options={[
+                              { value: '', label: '👤 Assign to Me (Default)' },
+                              { value: 'all', label: '🌐 Assign to All Sales Representatives (Shared Pool)' },
+                              ...salesReps
+                                .filter((rep) => rep.role !== 'owner')
+                                .map((rep) => ({
+                                  value: rep._id,
+                                  label: `${rep.name} (${rep.role === 'sales_admin' ? 'Manager' : 'Rep'})`
+                                }))
+                            ]}
+                          />
                           <div className="flex flex-wrap gap-2">
                             <label className="flex items-center gap-2 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-150 px-3.5 py-2.5 rounded-lg cursor-pointer hover:bg-indigo-100 transition select-none w-fit">
                               <input
@@ -3140,20 +3218,20 @@ export default function LeadsPage() {
                       <div className="space-y-2">
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Allocate Lead To</label>
                         <div className="flex flex-col gap-2">
-                          <select
+                          <SearchableSelect
                             value={editLeadAssignedTo}
-                            onChange={(e) => setEditLeadAssignedTo(e.target.value)}
-                            className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-600 transition"
-                          >
-                            <option value="all">🌐 Assign to All Sales Representatives (Shared Pool)</option>
-                            {salesReps
-                              .filter((rep) => rep.role !== 'owner')
-                              .map((rep) => (
-                                <option key={rep._id} value={rep._id}>
-                                  {rep.name} ({rep.role === 'sales_admin' ? 'Manager' : 'Rep'})
-                                </option>
-                              ))}
-                          </select>
+                            onChange={setEditLeadAssignedTo}
+                            placeholder="Select target assignee..."
+                            options={[
+                              { value: 'all', label: '🌐 Assign to All Sales Representatives (Shared Pool)' },
+                              ...salesReps
+                                .filter((rep) => rep.role !== 'owner')
+                                .map((rep) => ({
+                                  value: rep._id,
+                                  label: `${rep.name} (${rep.role === 'sales_admin' ? 'Manager' : 'Rep'})`
+                                }))
+                            ]}
+                          />
                           {currentUser?.role === 'owner' && (
                             <label className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-lg cursor-pointer hover:bg-slate-100 transition select-none w-fit">
                               <input
