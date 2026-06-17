@@ -935,7 +935,33 @@ export default function LeadsPage() {
     const reader = new FileReader();
     reader.onload = async (event) => {
       const text = event.target.result;
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      // Smart CSV line parser that respects newlines inside double quotes
+      const getCSVLines = (rawText) => {
+        const resultLines = [];
+        let currentLine = '';
+        let inQuotes = false;
+        for (let i = 0; i < rawText.length; i++) {
+          const char = rawText[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+            currentLine += char;
+          } else if (char === '\n' && !inQuotes) {
+            resultLines.push(currentLine.trim());
+            currentLine = '';
+          } else if (char === '\r' && !inQuotes) {
+            continue;
+          } else {
+            currentLine += char;
+          }
+        }
+        if (currentLine.trim()) {
+          resultLines.push(currentLine.trim());
+        }
+        return resultLines.filter(l => l.length > 0);
+      };
+
+      const lines = getCSVLines(text);
       
       if (lines.length <= 1) {
         showToast('⚠️ CSV file is empty or missing headers.', 'error');
@@ -1057,27 +1083,20 @@ export default function LeadsPage() {
       const parseEmails = (emailStr) => {
         const clean = cleanCSVValue(emailStr);
         if (!clean) return { primary: '', alternatives: [] };
-        const parts = clean.split(/[,\;\n\/|]+/).map(e => e.trim()).filter(Boolean);
         
-        const parsedParts = [];
-        const originalParts = [];
-        for (const part of parts) {
-          // Strip text in parentheses, e.g. "email (descr)" -> "email"
-          const stripped = part.replace(/\s*\(.*?\)\s*/g, '').trim();
-          if (stripped) {
-            parsedParts.push(stripped);
-            originalParts.push(part);
-          }
-        }
+        // Clean up spaces around '@' (e.g. "name @ domain.com" -> "name@domain.com")
+        const processed = clean.replace(/\s*@\s*/g, '@');
         
-        const validEmails = parsedParts.filter(e => e.includes('@'));
+        // Find all substring matches for a valid email pattern
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        const validEmails = processed.match(emailRegex) || [];
+        
         if (validEmails.length === 0) {
-          return { primary: '', alternatives: parts };
+          return { primary: '', alternatives: [] };
         }
         
         const primaryEmail = validEmails[0];
-        const primaryIndex = parsedParts.indexOf(primaryEmail);
-        const alternatives = originalParts.filter((_, idx) => idx !== primaryIndex);
+        const alternatives = validEmails.slice(1);
         
         return {
           primary: primaryEmail,
