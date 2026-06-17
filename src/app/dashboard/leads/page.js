@@ -75,6 +75,62 @@ const getCustomFieldIcon = (iconName) => {
   }
 };
 
+// Professional custom select dropdown component for filters
+function FilterDropdown({ value, onChange, options, placeholder }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  return (
+    <div ref={wrapperRef} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-left text-xs text-slate-700 hover:border-emerald-500 focus:border-emerald-500 focus:outline-none transition flex items-center justify-between cursor-pointer font-bold"
+      >
+        <span className="truncate">
+          {selectedOption ? selectedOption.label : placeholder || 'Select...'}
+        </span>
+        <span className="text-[10px] text-slate-400 shrink-0 ml-2">▼</span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto py-1">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-3.5 py-2 text-xs transition flex items-center justify-between cursor-pointer ${
+                opt.value === value
+                  ? 'bg-emerald-50 text-emerald-700 font-bold'
+                  : 'text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <span className="truncate">{opt.label}</span>
+              {opt.value === value && <span className="text-emerald-600 font-bold ml-2">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Searchable & Scrollable select component matching Innonsh CRM design system
 function SearchableSelect({ value, onChange, options, placeholder, disabled }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -163,6 +219,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState({ text: '', type: '' });
+  const [preferences, setPreferences] = useState({ leadInactivityDays: 7, followUpOverdueDays: 0 });
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -256,6 +313,28 @@ export default function LeadsPage() {
   const [bulkAssignModalOpen, setBulkAssignModalOpen] = useState(false);
   const [bulkTargetAssignee, setBulkTargetAssignee] = useState('');
 
+  // dynamic Follow-Up reminders parser
+  const getFollowUpStatus = (lead) => {
+    if (!lead.nextFollowUpDate || lead.status === 'Qualified' || lead.status === 'Lost') return null;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const followUp = safeNewDate(lead.nextFollowUpDate);
+    followUp.setHours(0, 0, 0, 0);
+    
+    const graceDays = preferences?.followUpOverdueDays !== undefined ? preferences.followUpOverdueDays : 0;
+    const graceInMs = graceDays * 24 * 60 * 60 * 1000;
+    const overdueTime = followUp.getTime() + graceInMs;
+    
+    if (overdueTime < today.getTime()) {
+      return { label: 'Overdue Follow-up', style: 'bg-rose-100 text-rose-800 border-rose-250 animate-pulse' };
+    } else if (followUp.getTime() === today.getTime()) {
+      return { label: 'Call Scheduled Today', style: 'bg-emerald-100 text-emerald-800 border-emerald-250 font-bold' };
+    }
+    return null;
+  };
+
   // Convert Deal Form state
   const [dealTitle, setDealTitle] = useState('');
   const [dealValue, setDealValue] = useState('');
@@ -296,11 +375,12 @@ export default function LeadsPage() {
             }
           }
 
-          // Fetch org-level custom field definitions & standard visibility settings
+          // Fetch org-level custom field definitions & standard visibility settings & preferences
           try {
-            const [cfRes, stdRes] = await Promise.all([
+            const [cfRes, stdRes, settingsRes] = await Promise.all([
               fetch('/api/tenant/custom-fields?module=leads'),
               fetch('/api/tenant/standard-fields'),
+              fetch('/api/tenant/settings'),
             ]);
             if (cfRes.ok) {
               const cfData = await cfRes.json();
@@ -309,6 +389,12 @@ export default function LeadsPage() {
             if (stdRes.ok) {
               const stdData = await stdRes.json();
               setHiddenStandardFields(stdData.hiddenFields || []);
+            }
+            if (settingsRes && settingsRes.ok) {
+              const settingsData = await settingsRes.json();
+              if (settingsData.success && settingsData.settings) {
+                setPreferences(settingsData.settings);
+              }
             }
           } catch (cfErr) {
             console.error('Fetch custom field/standard layout error:', cfErr);
@@ -329,7 +415,9 @@ export default function LeadsPage() {
       if (search) queryParams.append('search', search);
       if (statusFilter) queryParams.append('status', statusFilter);
       if (sourceFilter) queryParams.append('source', sourceFilter);
-      if (priorityFilter) queryParams.append('priority', priorityFilter);
+      if (priorityFilter && priorityFilter !== 'Overdue') {
+        queryParams.append('priority', priorityFilter);
+      }
       if (repFilter) queryParams.append('assignedTo', repFilter);
       if (sortBy) queryParams.append('sortBy', sortBy);
       if (productFilter) queryParams.append('interestedProduct', productFilter);
@@ -337,7 +425,16 @@ export default function LeadsPage() {
       const res = await fetch(`/api/leads?${queryParams.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setLeads(data.leads || []);
+        let fetchedLeads = data.leads || [];
+
+        if (priorityFilter === 'Overdue') {
+          fetchedLeads = fetchedLeads.filter(lead => {
+            const status = getFollowUpStatus(lead);
+            return status && status.label === 'Overdue Follow-up';
+          });
+        }
+
+        setLeads(fetchedLeads);
         setCurrentPage(1); // Reset to page 1 on new filter results
       }
     } catch (err) {
@@ -935,25 +1032,9 @@ export default function LeadsPage() {
     }
   };
 
-  // dynamic Follow-Up reminders parser
-  const getFollowUpStatus = (lead) => {
-    if (!lead.nextFollowUpDate || lead.status === 'Qualified' || lead.status === 'Lost') return null;
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const followUp = safeNewDate(lead.nextFollowUpDate);
-    followUp.setHours(0, 0, 0, 0);
-    
-    if (followUp < today) {
-      return { label: 'Overdue Follow-up', style: 'bg-rose-100 text-rose-800 border-rose-250 animate-pulse' };
-    } else if (followUp.getTime() === today.getTime()) {
-      return { label: 'Call Scheduled Today', style: 'bg-emerald-100 text-emerald-800 border-emerald-250 font-bold' };
-    }
-    return null;
-  };
 
-  // Inactive Lead Checker (7 days inactivity)
+
+  // Inactive Lead Checker (configurable inactivity limit)
   const isInactiveLead = (lead) => {
     if (lead.status === 'Qualified' || lead.status === 'Lost') return false;
     
@@ -968,10 +1049,11 @@ export default function LeadsPage() {
       }
     }
 
-    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+    const inactivityLimitDays = preferences?.leadInactivityDays !== undefined ? preferences.leadInactivityDays : 7;
+    const inactivityInMs = inactivityLimitDays * 24 * 60 * 60 * 1000;
     const lastUpdate = safeNewDate(lead.updatedAt).getTime();
     // eslint-disable-next-line react-hooks/purity
-    return (Date.now() - lastUpdate) > sevenDaysInMs;
+    return (Date.now() - lastUpdate) > inactivityInMs;
   };
 
   // Trigger Dynamic WhatsApp & Track outreach success
@@ -1541,93 +1623,93 @@ export default function LeadsPage() {
 
         {/* Status Filter */}
         <div>
-          <select
+          <FilterDropdown
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-600 transition"
-          >
-            <option value="Active">Active Leads (Default)</option>
-            <option value="">All Statuses (inc. Converted/Lost)</option>
-            <option value="New">New</option>
-            <option value="Contacted">Contacted</option>
-            <option value="Attempted">Attempted Contact</option>
-            <option value="Qualified">Qualified (Converted)</option>
-            <option value="Lost">Lost</option>
-            <option value="Future">Contact in Future</option>
-          </select>
+            onChange={setStatusFilter}
+            options={[
+              { value: 'Active', label: 'Active Leads (Default)' },
+              { value: '', label: 'All Statuses (inc. Converted/Lost)' },
+              { value: 'New', label: 'New' },
+              { value: 'Contacted', label: 'Contacted' },
+              { value: 'Attempted', label: 'Attempted Contact' },
+              { value: 'Qualified', label: 'Qualified (Converted)' },
+              { value: 'Lost', label: 'Lost' },
+              { value: 'Future', label: 'Contact in Future' },
+            ]}
+          />
         </div>
 
         {/* Priority Filter */}
         <div>
-          <select
+          <FilterDropdown
             value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-600 transition"
-          >
-            <option value="">All Priorities</option>
-            <option value="Hot">🔥 Hot Priority</option>
-            <option value="Warm">⭐ Warm Priority</option>
-            <option value="Cold">❄️ Cold Priority</option>
-          </select>
+            onChange={setPriorityFilter}
+            options={[
+              { value: '', label: 'All Priorities' },
+              { value: 'Hot', label: '🔥 Hot Priority' },
+              { value: 'Warm', label: '⭐ Warm Priority' },
+              { value: 'Cold', label: '❄️ Cold Priority' },
+              { value: 'Overdue', label: '⏰ Overdue Follow-up' },
+            ]}
+          />
         </div>
 
         {/* Source Filter */}
         <div>
-          <select
+          <FilterDropdown
             value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-600 transition"
-          >
-            <option value="">All Sources</option>
-            <option value="Website">Website</option>
-            <option value="Referral">Referral</option>
-            <option value="Cold Call">Cold Call</option>
-            <option value="Social Media">Social Media</option>
-            <option value="LinkedIn">LinkedIn</option>
-            <option value="Google Search">Google Search</option>
-            <option value="Event">Event/Exhibition</option>
-            <option value="Other">Other</option>
-          </select>
+            onChange={setSourceFilter}
+            options={[
+              { value: '', label: 'All Sources' },
+              { value: 'Website', label: 'Website' },
+              { value: 'Referral', label: 'Referral' },
+              { value: 'Cold Call', label: 'Cold Call' },
+              { value: 'Social Media', label: 'Social Media' },
+              { value: 'LinkedIn', label: 'LinkedIn' },
+              { value: 'Google Search', label: 'Google Search' },
+              { value: 'Event', label: 'Event/Exhibition' },
+              { value: 'Other', label: 'Other' },
+            ]}
+          />
         </div>
 
         {/* Interested Product Filter */}
         <div>
-          <select
+          <FilterDropdown
             value={productFilter}
-            onChange={(e) => setProductFilter(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-600 transition cursor-pointer font-bold"
-          >
-            <option value="">All Products</option>
-            <option value="General Inquiry">General Inquiry</option>
-            <option value="Innonsh Website">Innonsh Website</option>
-            <option value="Innonsh SprintOS">Innonsh SprintOS</option>
-            <option value="Innonsh ClinicPro">Innonsh ClinicPro</option>
-            <option value="Innonsh WorkGrid">Innonsh WorkGrid</option>
-            <option value="Innonsh TinySteps">Innonsh TinySteps</option>
-            <option value="Salon Management ERP">Salon Management ERP</option>
-            <option value="Innonsh LeadGen">Innonsh LeadGen</option>
-            <option value="Other">Other</option>
-          </select>
+            onChange={setProductFilter}
+            options={[
+              { value: '', label: 'All Products' },
+              { value: 'General Inquiry', label: 'General Inquiry' },
+              { value: 'Innonsh Website', label: 'Innonsh Website' },
+              { value: 'Innonsh SprintOS', label: 'Innonsh SprintOS' },
+              { value: 'Innonsh ClinicPro', label: 'Innonsh ClinicPro' },
+              { value: 'Innonsh WorkGrid', label: 'Innonsh WorkGrid' },
+              { value: 'Innonsh TinySteps', label: 'Innonsh TinySteps' },
+              { value: 'Salon Management ERP', label: 'Salon Management ERP' },
+              { value: 'Innonsh LeadGen', label: 'Innonsh LeadGen' },
+              { value: 'Other', label: 'Other' },
+            ]}
+          />
         </div>
 
         {/* Assignee Filter */}
         {(currentUser?.role === 'owner' || currentUser?.role === 'sales_admin') ? (
           <div>
-            <select
+            <FilterDropdown
               value={repFilter}
-              onChange={(e) => setRepFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-600 transition"
-            >
-              <option value="">All Sales Reps & Pool</option>
-              <option value="all">🌐 Shared Pool (All Reps)</option>
-              {salesReps
-                .filter((rep) => rep.role !== 'owner')
-                .map((rep) => (
-                  <option key={rep._id} value={rep._id}>
-                    {rep.name} ({rep.role === 'sales_admin' ? 'Manager' : 'Rep'})
-                  </option>
-                ))}
-            </select>
+              onChange={setRepFilter}
+              options={[
+                { value: '', label: 'All Sales Reps & Pool' },
+                { value: 'all', label: '🌐 Shared Pool (All Reps)' },
+                ...salesReps
+                  .filter((rep) => rep.role !== 'owner')
+                  .map((rep) => ({
+                    value: rep._id,
+                    label: `${rep.name} (${rep.role === 'sales_admin' ? 'Manager' : 'Rep'})`
+                  }))
+              ]}
+            />
           </div>
         ) : (
           <div className="flex items-center justify-center bg-slate-50 rounded-lg border border-slate-200 text-[10px] text-slate-400 font-bold tracking-wider uppercase font-mono">
@@ -1637,14 +1719,14 @@ export default function LeadsPage() {
 
         {/* Sorting Order */}
         <div>
-          <select
+          <FilterDropdown
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 font-bold transition cursor-pointer"
-          >
-            <option value="newest">🆕 Sort: Newest Created</option>
-            <option value="latest_communication">💬 Sort: Latest Follow-up</option>
-          </select>
+            onChange={setSortBy}
+            options={[
+              { value: 'newest', label: '🆕 Sort: Newest Created' },
+              { value: 'latest_communication', label: '💬 Sort: Latest Follow-up' }
+            ]}
+          />
         </div>
       </div>
 

@@ -70,6 +70,62 @@ const localToUTCISO = (localTimeStr) => {
   return isNaN(date.getTime()) ? null : date.toISOString();
 };
 
+// Professional custom select dropdown component for filters
+function FilterDropdown({ value, onChange, options, placeholder }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  return (
+    <div ref={wrapperRef} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-left text-xs text-slate-700 hover:border-emerald-500 focus:border-emerald-500 focus:outline-none transition flex items-center justify-between cursor-pointer font-bold"
+      >
+        <span className="truncate">
+          {selectedOption ? selectedOption.label : placeholder || 'Select...'}
+        </span>
+        <span className="text-[10px] text-slate-400 shrink-0 ml-2">▼</span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-y-auto py-1">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-3.5 py-2 text-xs transition flex items-center justify-between cursor-pointer ${
+                opt.value === value
+                  ? 'bg-emerald-50 text-emerald-700 font-bold'
+                  : 'text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <span className="truncate">{opt.label}</span>
+              {opt.value === value && <span className="text-emerald-600 font-bold ml-2">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ContactsPage() {
   const [contacts, setContacts] = useState([]);
   const [clientOrganizations, setClientOrganizations] = useState([]);
@@ -78,6 +134,7 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState({ text: '', type: '' });
+  const [preferences, setPreferences] = useState({ leadInactivityDays: 7, followUpOverdueDays: 0 });
   
   // Follow-up, notes and status flow states
   const [nextFollowUpDate, setNextFollowUpDate] = useState('');
@@ -158,11 +215,12 @@ export default function ContactsPage() {
             }
           }
 
-          // Fetch custom fields schema + standard visibility
-          const [cfRes, sfRes, suggRes] = await Promise.all([
+          // Fetch custom fields schema + standard visibility + settings
+          const [cfRes, sfRes, suggRes, settingsRes] = await Promise.all([
             fetch('/api/tenant/custom-fields?module=contacts'),
             fetch('/api/tenant/standard-fields'),
-            fetch('/api/tenant/sector-suggestions?module=contacts')
+            fetch('/api/tenant/sector-suggestions?module=contacts'),
+            fetch('/api/tenant/settings').catch(() => null)
           ]);
           if (cfRes.ok) {
             const cfData = await cfRes.json();
@@ -175,6 +233,12 @@ export default function ContactsPage() {
           if (suggRes.ok) {
             const suggData = await suggRes.json();
             setSector(suggData.sector || 'General');
+          }
+          if (settingsRes && settingsRes.ok) {
+            const settingsData = await settingsRes.json();
+            if (settingsData.success && settingsData.settings) {
+              setPreferences(settingsData.settings);
+            }
           }
           fetchClientOrganizations();
         }
@@ -690,32 +754,33 @@ export default function ContactsPage() {
 
         {/* Status Filter */}
         <div>
-          <select
+          <FilterDropdown
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 transition"
-          >
-            <option value="">All Contact Statuses</option>
-            <option value="Active">🟢 Active Customers</option>
-            <option value="Inactive">🔴 Inactive Accounts</option>
-            <option value="Qualified">🎓 Qualified Accounts</option>
-            <option value="Lost">❌ Lost Accounts</option>
-          </select>
+            onChange={setStatusFilter}
+            options={[
+              { value: '', label: 'All Contact Statuses' },
+              { value: 'Active', label: '🟢 Active Customers' },
+              { value: 'Inactive', label: '🔴 Inactive Accounts' },
+              { value: 'Qualified', label: '🎓 Qualified Accounts' },
+              { value: 'Lost', label: '❌ Lost Accounts' }
+            ]}
+          />
         </div>
 
         {/* Admin attribution filters */}
         {(currentUser?.role === 'owner' || currentUser?.role === 'sales_admin') ? (
           <div>
-            <select
+            <FilterDropdown
               value={repFilter}
-              onChange={(e) => setRepFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 transition"
-            >
-              <option value="">All Sales Rep Accounts</option>
-              {salesReps.map((rep) => (
-                <option key={rep._id} value={rep._id}>{rep.name}</option>
-              ))}
-            </select>
+              onChange={setRepFilter}
+              options={[
+                { value: '', label: 'All Sales Rep Accounts' },
+                ...salesReps.map((rep) => ({
+                  value: rep._id,
+                  label: rep.name
+                }))
+              ]}
+            />
           </div>
         ) : (
           <div className="flex items-center justify-center bg-slate-50 border border-slate-200 rounded-lg text-[10px] text-slate-400 uppercase tracking-widest font-mono font-black">
@@ -968,6 +1033,7 @@ export default function ContactsPage() {
                       <option value="Inactive">🔴 Inactive</option>
                       <option value="Qualified">🎓 Qualified</option>
                       <option value="Lost">❌ Lost</option>
+                      <option value="New">🆕 Revert to New Lead</option>
                     </select>
                   </div>
                 )}
@@ -981,10 +1047,15 @@ export default function ContactsPage() {
                   const diffTime = fDate.getTime() - today.getTime();
                   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                  if (diffTime < 0) {
+                  const graceDays = preferences?.followUpOverdueDays !== undefined ? preferences.followUpOverdueDays : 0;
+                  const graceInMs = graceDays * 24 * 60 * 60 * 1000;
+
+                  if (fDate.getTime() + graceInMs < today.getTime()) {
                     return { text: `⚠️ OVERDUE follow-up! Was scheduled for ${fDate.toLocaleDateString('en-IN', { dateStyle: 'medium' })}`, type: 'overdue' };
                   } else if (fDate.getDate() === today.getDate() && fDate.getMonth() === today.getMonth() && fDate.getFullYear() === today.getFullYear()) {
                     return { text: `📅 Follow-up scheduled for TODAY at ${fDate.toLocaleTimeString('en-IN', { timeStyle: 'short' })}`, type: 'today' };
+                  } else if (diffTime < 0) {
+                    return null;
                   } else {
                     return { text: `📅 Next follow-up in ${diffDays} days (${fDate.toLocaleDateString('en-IN', { dateStyle: 'medium' })})`, type: 'future' };
                   }
@@ -1531,6 +1602,7 @@ export default function ContactsPage() {
                       <option value="Inactive">🔴 Inactive</option>
                       <option value="Qualified">🎓 Qualified</option>
                       <option value="Lost">❌ Lost</option>
+                      <option value="New">🆕 New Lead</option>
                     </select>
                   </div>
                 </div>
@@ -1876,6 +1948,7 @@ export default function ContactsPage() {
                       <option value="Inactive">🔴 Inactive</option>
                       <option value="Qualified">🎓 Qualified</option>
                       <option value="Lost">❌ Lost</option>
+                      <option value="New">🆕 New Lead</option>
                     </select>
                   </div>
                 </div>

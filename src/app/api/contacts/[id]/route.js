@@ -1,5 +1,6 @@
 import connectToDatabase from '@/lib/db';
 import Contact from '@/lib/models/Contact';
+import Lead from '@/lib/models/Lead';
 import ClientOrganization from '@/lib/models/ClientOrganization';
 import { supabase } from '@/lib/supabaseClient';
 import { mapContactToFrontend } from '@/lib/dbMapper';
@@ -157,6 +158,55 @@ export async function PUT(req, { params }) {
         nextFollowUpDate,
         followUpType
       } = body;
+
+      if (status === 'New') {
+        // Revert associated lead status to 'New' and update lead details
+        if (contact.lead_id) {
+          const leadUpdates = {
+            status: 'New',
+          };
+          if (firstName !== undefined) leadUpdates.first_name = firstName.trim();
+          if (lastName !== undefined) leadUpdates.last_name = lastName.trim();
+          if (company !== undefined) leadUpdates.company = company.trim();
+          if (designation !== undefined) leadUpdates.designation = designation.trim();
+          if (email !== undefined) leadUpdates.email = email.toLowerCase().trim();
+          if (phone !== undefined) leadUpdates.phone = phone.trim();
+          if (whatsapp !== undefined) leadUpdates.whatsapp = whatsapp.trim();
+          if (city !== undefined) leadUpdates.city = city.trim();
+          if (state !== undefined) leadUpdates.state = state.trim();
+          if (country !== undefined) leadUpdates.country = country.trim();
+          if (customData !== undefined) leadUpdates.custom_data = customData;
+          if (nextFollowUpDate !== undefined) leadUpdates.next_follow_up_date = nextFollowUpDate ? new Date(nextFollowUpDate).toISOString() : null;
+          if (followUpType !== undefined) leadUpdates.follow_up_type = followUpType || 'None';
+          if (decodedUser.role !== 'sales_rep' && assignedTo !== undefined) {
+            leadUpdates.assigned_to = assignedTo || null;
+          }
+
+          const { error: leadUpdateError } = await supabase
+            .from('leads')
+            .update(leadUpdates)
+            .eq('id', contact.lead_id);
+          if (leadUpdateError) {
+            console.error('Failed to revert lead status in Supabase:', leadUpdateError);
+          }
+        }
+
+        // Delete contact
+        const { error: deleteError } = await supabase
+          .from('contacts')
+          .delete()
+          .eq('id', id);
+        if (deleteError) {
+          console.error('Supabase delete contact error on revert:', deleteError);
+          throw deleteError;
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: 'Contact successfully reverted to a New Lead.',
+          contact: null
+        });
+      }
 
       // Validate firstName
       if (firstName !== undefined && !firstName.trim()) {
@@ -316,6 +366,40 @@ export async function PUT(req, { params }) {
         nextFollowUpDate,
         followUpType
       } = body;
+
+      if (status === 'New') {
+        // Revert associated lead status to 'New' and update details
+        if (contact.leadId) {
+          const leadUpdates = {
+            status: 'New',
+          };
+          if (firstName !== undefined) leadUpdates.firstName = firstName.trim();
+          if (lastName !== undefined) leadUpdates.lastName = lastName.trim();
+          if (company !== undefined) leadUpdates.company = company.trim();
+          if (designation !== undefined) leadUpdates.designation = designation.trim();
+          if (email !== undefined) leadUpdates.email = email.toLowerCase().trim();
+          if (phone !== undefined) leadUpdates.phone = phone.trim();
+          if (whatsapp !== undefined) leadUpdates.whatsapp = whatsapp.trim();
+          if (city !== undefined) leadUpdates.city = city.trim();
+          if (state !== undefined) leadUpdates.state = state.trim();
+          if (country !== undefined) leadUpdates.country = country.trim();
+          if (nextFollowUpDate !== undefined) leadUpdates.nextFollowUpDate = nextFollowUpDate ? new Date(nextFollowUpDate) : null;
+          if (followUpType !== undefined) leadUpdates.followUpType = followUpType || 'None';
+          if (decodedUser.role !== 'sales_rep' && assignedTo !== undefined) {
+            leadUpdates.assignedTo = assignedTo || null;
+          }
+
+          await Lead.findByIdAndUpdate(contact.leadId, leadUpdates);
+        }
+        // Delete contact
+        await Contact.findByIdAndDelete(id);
+
+        return NextResponse.json({
+          success: true,
+          message: 'Contact successfully reverted to a New Lead.',
+          contact: null
+        });
+      }
 
       // Validate firstName
       if (firstName !== undefined && !firstName.trim()) {

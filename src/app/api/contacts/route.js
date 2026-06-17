@@ -220,6 +220,75 @@ export async function POST(req) {
       targetAssignee = assignedTo;
     }
 
+    if (status === 'New') {
+      if (supabase) {
+        // Create a Lead in Supabase with status 'New'
+        const { data: newLead, error: leadInsertError } = await supabase
+          .from('leads')
+          .insert([
+            {
+              first_name: firstName.trim(),
+              last_name: lastName || '',
+              company: company || '',
+              designation: designation || '',
+              email: cleanEmail,
+              phone: cleanPhone,
+              whatsapp: whatsapp || '',
+              city: city || '',
+              state: state || '',
+              country: country || 'India',
+              assigned_to: targetAssignee,
+              status: 'New',
+              org_id: decodedUser.orgId,
+              custom_data: customData || {},
+              next_follow_up_date: nextFollowUpDate ? new Date(nextFollowUpDate).toISOString() : null,
+              follow_up_type: followUpType || 'None'
+            }
+          ])
+          .select('id')
+          .single();
+
+        if (leadInsertError) {
+          console.error('Supabase create lead error for status New:', leadInsertError);
+          return NextResponse.json({ error: 'Failed to create lead.' }, { status: 505 });
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: 'Created raw lead successfully as status is New.',
+          contact: null
+        }, { status: 201 });
+      } else {
+        // Create a Lead in MongoDB with status 'New'
+        await connectToDatabase();
+        await Lead.create({
+          firstName: firstName.trim(),
+          lastName: lastName || '',
+          company: company || '',
+          designation: designation || '',
+          email: cleanEmail,
+          phone: cleanPhone,
+          whatsapp: whatsapp || '',
+          city: city || '',
+          state: state || '',
+          country: country || 'India',
+          assignedTo: targetAssignee,
+          status: 'New',
+          createdBy: decodedUser.id,
+          isPublic: false,
+          customFields: [],
+          nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
+          followUpType: followUpType || 'None'
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: 'Created raw lead successfully as status is New.',
+          contact: null
+        }, { status: 201 });
+      }
+    }
+
     let finalContact = null;
 
     // 1. DYNAMIC DATABASE DETECTOR

@@ -83,6 +83,15 @@ export default function SettingsDashboardPage() {
       iconColor: isOwner ? 'text-blue-500 bg-blue-50 border-blue-100' : 'text-slate-400 bg-slate-50 border-slate-200',
       active: isOwner,
       ownerOnly: true,
+    },
+    {
+      title: 'Thresholds & Preferences',
+      description: 'Configure custom inactivity thresholds for leads and overdue follow-up rules for your organization.',
+      href: '/dashboard/settings/preferences',
+      icon: Settings,
+      iconColor: isOwner ? 'text-teal-500 bg-teal-50 border-teal-100' : 'text-slate-400 bg-slate-50 border-slate-200',
+      active: isOwner,
+      ownerOnly: true,
     }
   ];
 
