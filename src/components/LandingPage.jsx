@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect } from 'react';
+import Link from 'next/link';
 
 export default function LandingPage() {
   useEffect(() => {
@@ -109,7 +110,7 @@ export default function LandingPage() {
 {/* ============= NAVBAR ============= */}
 <header id="header">
  <div className="wrap nav">
- <a href="#" className="logo">
+ <Link href="/" className="logo">
  <span className="logo-mark" style={{background: "transparent", boxShadow: "none"}}>
  <svg width="32" height="32" viewBox="0 0 189 190" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="M45.0879 63.4871C45.1245 61.3863 46.7801 59.6719 48.8783 59.5621L111.882 56.2645C115.508 56.0747 117.491 60.4256 114.968 63.0377L50.8679 129.416C48.3455 132.028 43.9281 130.198 43.9912 126.567L45.0879 63.4871Z" fill="var(--primary)"/>
@@ -119,7 +120,7 @@ export default function LandingPage() {
  </svg>
  </span>
  <span className="logo-text" style={{display: 'flex', gap: '5px'}}>Innonsh<span style={{color: "var(--primary)"}}>LeadGen</span></span>
- </a>
+ </Link>
  <nav className="nav-links">
  <a href="#challenges">Challenges</a>
  <a href="#features">Features</a>
@@ -200,7 +201,7 @@ export default function LandingPage() {
  <div className="dash">
  <div className="dash-bar">
  <div className="dots"><i></i><i></i><i></i></div>
- <div className="dash-url">app.innonshcrm.com/dashboard</div>
+ <div className="dash-url">leadgen.innonsh.com/dashboard</div>
  </div>
  <div className="dash-body">
  <div className="dash-side">
@@ -769,10 +770,10 @@ export default function LandingPage() {
  <h2>Ready to Transform Your Sales Process?</h2>
  <p>Join 1,200+ teams already closing more with Innonsh CRM.</p>
  <div className="hero-cta">
- <a href="#" className="btn btn-white">Schedule Demo
+ <a href="#contact" className="btn btn-white">Schedule Demo
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
  </a>
- <a href="#" className="btn btn-outline-w">Contact Sales</a>
+ <a href="#contact" className="btn btn-outline-w">Contact Sales</a>
  </div>
  <div className="cta-note">
  <span><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>14-day free trial</span>
@@ -788,7 +789,7 @@ export default function LandingPage() {
  <div className="wrap">
  <div className="foot-grid">
  <div className="foot-brand">
- <a href="#" className="logo">
+ <Link href="/" className="logo">
  <span className="logo-mark" style={{background: "transparent", boxShadow: "none"}}>
  <svg width="32" height="32" viewBox="0 0 189 190" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path d="M45.0879 63.4871C45.1245 61.3863 46.7801 59.6719 48.8783 59.5621L111.882 56.2645C115.508 56.0747 117.491 60.4256 114.968 63.0377L50.8679 129.416C48.3455 132.028 43.9281 130.198 43.9912 126.567L45.0879 63.4871Z" fill="var(--primary)"/>
@@ -797,11 +798,11 @@ export default function LandingPage() {
   <rect x="189" y="17" width="96" height="25" rx="4" transform="rotate(90 189 17)" fill="var(--primary)"/>
  </svg>
  </span>
- <span className="logo-text" style={{display: 'flex', gap: '5px'}}>Innonsh<span style={{color: "var(--primary)"}}>CRM</span></span>
- </a>
+ <span className="logo-text" style={{display: 'flex', gap: '5px'}}>Innonsh<span style={{color: "var(--primary)"}}>LeadGen</span></span>
+ </Link>
  <p>A complete customer relationship management platform that turns leads into loyal customers from first touch to repeat business.</p>
  <div className="foot-contact">
- <div><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M4 7l8 6 8-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>hello@innonshcrm.com</div>
+ <div><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M4 7l8 6 8-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>hello@innonsh.com</div>
  <div><svg viewBox="0 0 24 24" fill="none"><path d="M5 4h4l2 5-3 2a12 12 0 005 5l2-3 5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/></svg>+91 98765 43210</div>
  <div><svg viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6 7-11a7 7 0 10-14 0c0 5 7 11 7 11Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="2"/></svg>Pune, Maharashtra, India</div>
  </div>
@@ -824,20 +825,20 @@ export default function LandingPage() {
  </div>
  <div className="foot-col">
  <h4>Resources</h4>
- <a href="#">Documentation</a>
- <a href="#">API Reference</a>
- <a href="#">Help Center</a>
- <a href="#">Privacy Policy</a>
- <a href="#">Terms of Service</a>
+ <a href="#" onClick={(e) => e.preventDefault()}>Documentation</a>
+ <a href="#" onClick={(e) => e.preventDefault()}>API Reference</a>
+ <a href="#" onClick={(e) => e.preventDefault()}>Help Center</a>
+ <a href="#" onClick={(e) => e.preventDefault()}>Privacy Policy</a>
+ <a href="#" onClick={(e) => e.preventDefault()}>Terms of Service</a>
  </div>
  </div>
  <div className="foot-bottom">
- <p>© 2026 Innonsh CRM. All rights reserved.</p>
+ <p>© 2026 Innonsh LeadGen. All rights reserved.</p>
  <div className="socials">
- <a href="#" aria-label="LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 11-.02 5 2.5 2.5 0 01.02-5ZM3 9h4v12H3zM10 9h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05C21.4 8.65 22 11 22 14.1V21h-4v-6c0-1.45-.03-3.3-2-3.3s-2.3 1.57-2.3 3.2V21h-4z"/></svg></a>
- <a href="#" aria-label="Twitter"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 5.9c-.7.3-1.5.5-2.3.6.8-.5 1.5-1.3 1.8-2.3-.8.5-1.7.8-2.6 1a4 4 0 00-6.9 3.7A11.4 11.4 0 013 4.8a4 4 0 001.2 5.4c-.6 0-1.2-.2-1.8-.5v.1a4 4 0 003.2 4 4 4 0 01-1.8.1 4 4 0 003.7 2.8A8 8 0 012 18.3a11.3 11.3 0 006.1 1.8c7.4 0 11.4-6.1 11.4-11.4v-.5c.8-.6 1.5-1.3 2-2.1Z"/></svg></a>
- <a href="#" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 10-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0022 12Z"/></svg></a>
- <a href="#" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/></svg></a>
+ <a href="#" onClick={(e) => e.preventDefault()} aria-label="LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 11-.02 5 2.5 2.5 0 01.02-5ZM3 9h4v12H3zM10 9h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05C21.4 8.65 22 11 22 14.1V21h-4v-6c0-1.45-.03-3.3-2-3.3s-2.3 1.57-2.3 3.2V21h-4z"/></svg></a>
+ <a href="#" onClick={(e) => e.preventDefault()} aria-label="Twitter"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 5.9c-.7.3-1.5.5-2.3.6.8-.5 1.5-1.3 1.8-2.3-.8.5-1.7.8-2.6 1a4 4 0 00-6.9 3.7A11.4 11.4 0 013 4.8a4 4 0 001.2 5.4c-.6 0-1.2-.2-1.8-.5v.1a4 4 0 003.2 4 4 4 0 01-1.8.1 4 4 0 003.7 2.8A8 8 0 012 18.3a11.3 11.3 0 006.1 1.8c7.4 0 11.4-6.1 11.4-11.4v-.5c.8-.6 1.5-1.3 2-2.1Z"/></svg></a>
+ <a href="#" onClick={(e) => e.preventDefault()} aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 10-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0022 12Z"/></svg></a>
+ <a href="#" onClick={(e) => e.preventDefault()} aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/></svg></a>
  </div>
  </div>
  </div>
