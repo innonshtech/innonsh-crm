@@ -739,10 +739,19 @@ export default function LeadsPage() {
 
   // Selection toggle for all leads on the current page
   const handleToggleSelectAll = () => {
-    if (selectedLeads.length === currentLeads.length) {
-      setSelectedLeads([]);
+    const allCurrentSelected = currentLeads.length > 0 && currentLeads.every(l => selectedLeads.includes(l._id));
+    if (allCurrentSelected) {
+      const currentIds = currentLeads.map(l => l._id);
+      setSelectedLeads(selectedLeads.filter(id => !currentIds.includes(id)));
     } else {
-      setSelectedLeads(currentLeads.map(l => l._id));
+      const currentIds = currentLeads.map(l => l._id);
+      const newSelections = [...selectedLeads];
+      currentIds.forEach(id => {
+        if (!newSelections.includes(id)) {
+          newSelections.push(id);
+        }
+      });
+      setSelectedLeads(newSelections);
     }
   };
 
@@ -1631,7 +1640,7 @@ export default function LeadsPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-650 font-bold transition cursor-pointer"
+            className="w-full px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:outline-none text-xs text-slate-655 font-bold transition cursor-pointer"
           >
             <option value="newest">🆕 Sort: Newest Created</option>
             <option value="latest_communication">💬 Sort: Latest Follow-up</option>
@@ -1664,11 +1673,12 @@ export default function LeadsPage() {
                   <th className="px-4 py-4 text-center w-10">
                     <input
                       type="checkbox"
-                      checked={currentLeads.length > 0 && selectedLeads.length === currentLeads.length}
+                      checked={currentLeads.length > 0 && currentLeads.every(l => selectedLeads.includes(l._id))}
                       onChange={handleToggleSelectAll}
                       className="rounded accent-emerald-500 cursor-pointer w-4 h-4"
                     />
                   </th>
+                  <th className="px-2 py-4 text-center text-slate-400 w-12 font-mono font-bold">#</th>
                   <th className="px-6 py-4">{currentUser?.sectorConfig?.leadTerm || 'Lead'} Name</th>
                   <th className="px-6 py-4">Organization & Designation</th>
                   <th className="px-6 py-4">Priority & Warning</th>
@@ -1680,12 +1690,13 @@ export default function LeadsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {currentLeads.map((lead) => {
+                {currentLeads.map((lead, index) => {
                   const followUpAlert = getFollowUpStatus(lead);
                   const isSlipping = isInactiveLead(lead);
                   const latestNote = lead.notes && lead.notes.length > 0
                     ? [...lead.notes].sort((a, b) => (safeNewDate(b.createdAt || 0).getTime() || 0) - (safeNewDate(a.createdAt || 0).getTime() || 0))[0]
                     : null;
+                  const globalIndex = (currentPage - 1) * itemsPerPage + index + 1;
 
                   return (
                     <tr 
@@ -1702,6 +1713,9 @@ export default function LeadsPage() {
                           onChange={() => handleToggleSelectLead(lead._id)}
                           className="rounded accent-emerald-500 cursor-pointer w-4 h-4"
                         />
+                      </td>
+                      <td className="px-2 py-4 text-center text-slate-400 font-mono text-[10px] font-bold select-none" onClick={(e) => e.stopPropagation()}>
+                        {globalIndex}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2.5">
@@ -1814,31 +1828,75 @@ export default function LeadsPage() {
           </div>
         )}
 
-        {/* --- DYNAMIC PAGINATION FOOTER --- */}
-        {leads.length > itemsPerPage && (
-          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+        {/* --- TABLE FOOTER (PAGINATION & RANGE SELECTOR) --- */}
+        {leads.length > 0 && (
+          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
             <span>
               Showing <strong className="text-slate-700">{indexOfFirstItem + 1}</strong> to{' '}
               <strong className="text-slate-700">{Math.min(indexOfLastItem, leads.length)}</strong> of{' '}
               <strong className="text-slate-700">{leads.length}</strong> {currentUser?.sectorConfig?.leadTerm || 'Lead'}s
             </span>
-            <div className="flex items-center gap-2">
+
+            {/* Range Selector */}
+            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1.5 shadow-sm">
+              <span className="text-[10px] font-bold text-slate-500 uppercase px-1">Select Range:</span>
+              <input
+                type="number"
+                min="1"
+                placeholder="From"
+                className="w-12 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded text-[10px] font-mono focus:outline-none focus:border-emerald-500"
+                id="rangeFrom"
+              />
+              <span className="text-[10px] text-slate-400 font-bold select-none">-</span>
+              <input
+                type="number"
+                min="1"
+                placeholder="To"
+                className="w-12 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded text-[10px] font-mono focus:outline-none focus:border-emerald-500"
+                id="rangeTo"
+              />
               <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(currentPage - 1)}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 transition cursor-pointer"
+                type="button"
+                onClick={() => {
+                  const fromVal = parseInt(document.getElementById('rangeFrom').value, 10);
+                  const toVal = parseInt(document.getElementById('rangeTo').value, 10);
+                  if (!isNaN(fromVal) && !isNaN(toVal) && fromVal > 0 && toVal >= fromVal) {
+                    const startIndex = fromVal - 1;
+                    const endIndex = Math.min(toVal, leads.length);
+                    const slicedLeads = leads.slice(startIndex, endIndex).map(l => l._id);
+                    setSelectedLeads(slicedLeads);
+                    showToast(`Selected rows ${fromVal} to ${endIndex} (${slicedLeads.length} leads).`);
+                  } else {
+                    showToast('Invalid row range.', 'error');
+                  }
+                }}
+                className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded shadow-sm transition cursor-pointer active:scale-95"
               >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="font-bold text-slate-700">Page {currentPage} of {totalPages}</span>
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(currentPage + 1)}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 transition cursor-pointer"
-              >
-                <ChevronRight className="h-4 w-4" />
+                Go
               </button>
             </div>
+
+            {leads.length > itemsPerPage ? (
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 transition cursor-pointer"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="font-bold text-slate-700">Page {currentPage} of {totalPages}</span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50 transition cursor-pointer"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="w-24 sm:block hidden"></div>
+            )}
           </div>
         )}
       </div>
