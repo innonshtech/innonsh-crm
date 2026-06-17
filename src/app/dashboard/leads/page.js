@@ -253,6 +253,8 @@ export default function LeadsPage() {
   const [editLeadCustomData, setEditLeadCustomData] = useState({});
   const [editLeadIsPublic, setEditLeadIsPublic] = useState(false);
   const [selectedLeads, setSelectedLeads] = useState([]);
+  const [bulkAssignModalOpen, setBulkAssignModalOpen] = useState(false);
+  const [bulkTargetAssignee, setBulkTargetAssignee] = useState('');
 
   // Convert Deal Form state
   const [dealTitle, setDealTitle] = useState('');
@@ -772,6 +774,39 @@ export default function LeadsPage() {
     }
   };
 
+  // Bulk Assign implementation
+  const handleBulkAssign = async () => {
+    if (selectedLeads.length === 0) return;
+    setActionLoading(true);
+    setFormError('');
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      await Promise.all(
+        selectedLeads.map(async (leadId) => {
+          const res = await fetch(`/api/leads/${leadId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assignedTo: bulkTargetAssignee || null }),
+          });
+          if (res.ok) successCount++;
+          else errorCount++;
+        })
+      );
+      setBulkAssignModalOpen(false);
+      setBulkTargetAssignee('');
+      setSelectedLeads([]);
+      fetchLeads();
+      showToast(`👤 Bulk Assignment Complete! Successfully assigned ${successCount} leads.`);
+    } catch (err) {
+      console.error('Bulk assignment error:', err);
+      setFormError('Error occurred during bulk assignment.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // --- DYNAMIC UPLOAD ATTACHMENT ACTION ---
   const handleUploadAttachment = async (e) => {
     const file = e.target.files[0];
@@ -1214,6 +1249,14 @@ export default function LeadsPage() {
         const columns = splitCSVLine(lines[i]);
         if (columns.length < 2) continue;
 
+        // Skip rows that have no name and no company details (empty/useless trailing rows)
+        const csvFirstName = getVal(columns, idxFirstName);
+        const csvLastName = getVal(columns, idxLastName);
+        const csvCompany = getVal(columns, idxCompany);
+        if (!csvFirstName && !csvLastName && !csvCompany) {
+          continue;
+        }
+
         const parsedEmails = parseEmails(idxEmail !== -1 ? columns[idxEmail] : '');
         const parsedPhones = parsePhones(idxPhone !== -1 ? columns[idxPhone] : '');
 
@@ -1383,6 +1426,22 @@ export default function LeadsPage() {
             <Download className="h-4 w-4" />
             Export CSV
           </button>
+
+          {/* Bulk Assign Selected */}
+          {selectedLeads.length > 0 && (
+            <button
+              onClick={() => {
+                setBulkTargetAssignee(currentUser?.id || '');
+                setBulkAssignModalOpen(true);
+              }}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 border border-indigo-200 hover:border-indigo-300 text-indigo-700 hover:text-indigo-850 text-xs font-bold rounded-lg transition active:scale-95 cursor-pointer shadow-sm animate-in fade-in"
+              title="Assign selected leads to a team member"
+            >
+              <Users className="h-4 w-4 text-indigo-650" />
+              Assign Selected ({selectedLeads.length})
+            </button>
+          )}
 
           {/* Bulk Delete Selected */}
           {selectedLeads.length > 0 && (
@@ -3424,6 +3483,80 @@ export default function LeadsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- BULK ASSIGN LEADS MODAL --- */}
+      {bulkAssignModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4 py-6 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-5 border-b border-slate-200 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+              <h2 className="text-base font-bold text-slate-800 flex items-center gap-1.5">
+                <Users className="h-5 w-5 text-indigo-500" />
+                Bulk Assign Leads
+              </h2>
+              <button 
+                onClick={() => setBulkAssignModalOpen(false)} 
+                className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-850"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-5 bg-white">
+              {formError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-100 text-xs text-rose-600 font-bold">
+                  {formError}
+                </div>
+              )}
+
+              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-xs space-y-1 shadow-sm">
+                <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px] font-mono">Assigning Leads:</p>
+                <p className="text-slate-800 font-black text-xs">You have selected <span className="text-indigo-600 font-black">{selectedLeads.length}</span> leads.</p>
+                <p className="text-slate-500 text-[10px] pt-1 font-medium leading-relaxed">Select a team member to bulk assign all selected leads to. This will also update their corresponding follow-up tasks.</p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Select Team Member</label>
+                <SearchableSelect
+                  value={bulkTargetAssignee}
+                  onChange={setBulkTargetAssignee}
+                  placeholder="Select target assignee..."
+                  options={[
+                    { value: currentUser?.id || '', label: '👤 Assign to Me' },
+                    { value: 'all', label: '🌐 Assign to All Sales Representatives (Shared Pool)' },
+                    ...salesReps
+                      .filter((rep) => rep.role !== 'owner' && rep._id !== currentUser?.id && rep.id !== currentUser?.id)
+                      .map((rep) => ({
+                        value: rep._id || rep.id,
+                        label: `${rep.name} (${rep.role === 'sales_admin' ? 'Manager' : 'Rep'})`
+                      }))
+                  ]}
+                />
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setBulkAssignModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold hover:bg-slate-100 border border-transparent rounded-lg text-slate-500 hover:text-slate-800 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkAssign}
+                  disabled={actionLoading}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-550 text-white text-xs font-bold rounded-lg shadow-md shadow-indigo-600/10 hover:shadow-indigo-650/25 transition cursor-pointer"
+                >
+                  {actionLoading ? <Loader2 className="h-4 w-4 animate-spin text-white" /> : 'Bulk Assign Leads'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
