@@ -158,10 +158,12 @@ export async function GET(req) {
         leads.sort((a, b) => {
           const aLatest = Math.max(
             new Date(a.createdAt || 0).getTime() || 0,
+            new Date(a.nextFollowUpDate || 0).getTime() || 0,
             ...(a.notes || []).map((n) => new Date(n.createdAt || 0).getTime() || 0)
           );
           const bLatest = Math.max(
             new Date(b.createdAt || 0).getTime() || 0,
+            new Date(b.nextFollowUpDate || 0).getTime() || 0,
             ...(b.notes || []).map((n) => new Date(n.createdAt || 0).getTime() || 0)
           );
           return bLatest - aLatest;
@@ -256,10 +258,12 @@ export async function GET(req) {
         mongoLeads = mongoLeads.sort((a, b) => {
           const aLatest = Math.max(
             new Date(a.createdAt || 0).getTime() || 0,
+            new Date(a.nextFollowUpDate || 0).getTime() || 0,
             ...(a.notes || []).map((n) => new Date(n.createdAt || 0).getTime() || 0)
           );
           const bLatest = Math.max(
             new Date(b.createdAt || 0).getTime() || 0,
+            new Date(b.nextFollowUpDate || 0).getTime() || 0,
             ...(b.notes || []).map((n) => new Date(n.createdAt || 0).getTime() || 0)
           );
           return bLatest - aLatest;
