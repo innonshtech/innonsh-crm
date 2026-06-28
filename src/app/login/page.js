@@ -232,31 +232,6 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
-
-  const handleSeedInit = async () => {
-    setError('');
-    setSuccess('');
-    setLoading(true);
-
-    try {
-      const res = await fetch('/api/auth/seed');
-      const data = await res.json();
-      if (res.ok) {
-        setSuccess('Database successfully seeded! Log in using owner@mycompany.com & ownerpassword123.');
-        setEmail('owner@mycompany.com');
-        setPassword('ownerpassword123');
-        setActiveTab('login');
-      } else {
-        setError(data.error || 'Seed failed.');
-      }
-    } catch (err) {
-      console.error('Seed API error:', err);
-      setError('Could not connect to seed API. Make sure your server is running.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-12 text-slate-800 font-sans relative overflow-hidden">
       {/* Soft visual background gradient glows */}
@@ -664,19 +639,6 @@ export default function LoginPage() {
 
         </div>
 
-        {/* First Time Helper Seed Onboarding Box */}
-        <div className="mt-6 text-center">
-          <p className="text-xs text-slate-400 font-semibold">
-            First time running the application?{' '}
-            <button
-              onClick={handleSeedInit}
-              disabled={loading}
-              className="text-emerald-600 hover:text-emerald-500 font-bold underline transition cursor-pointer"
-            >
-              Initialize Database Seeder
-            </button>
-          </p>
-        </div>
 
       </div>
     </div>

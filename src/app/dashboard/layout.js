@@ -630,7 +630,7 @@ export default function DashboardLayout({ children }) {
         <div className="md:hidden fixed inset-0 z-50 flex bg-slate-900/40 backdrop-blur-sm">
           <div className="flex flex-col w-60 bg-white border-r border-slate-250 h-full animate-in slide-in-from-left duration-250">
             <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-200 bg-slate-50/50">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <svg width="22" height="22" viewBox="0 0 189 190" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
                   <path d="M45.0879 63.4871C45.1245 61.3863 46.7801 59.6719 48.8783 59.5621L111.882 56.2645C115.508 56.0747 117.491 60.4256 114.968 63.0377L50.8679 129.416C48.3455 132.028 43.9281 130.198 43.9912 126.567L45.0879 63.4871Z" fill="#10b981"/>
                   <path d="M131.109 138.872C131.072 140.973 129.417 142.687 127.318 142.797L64.3147 146.094C60.6884 146.284 58.7058 141.933 61.2283 139.321L125.329 72.9434C127.851 70.3313 132.269 72.1609 132.205 75.7916L131.109 138.872Z" fill="#10b981"/>
@@ -643,7 +643,7 @@ export default function DashboardLayout({ children }) {
               </div>
               <button 
                 onClick={() => setMobileSidebarOpen(false)} 
-                className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800"
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 shrink-0"
               >
                 <X className="h-5 w-5" />
               </button>
