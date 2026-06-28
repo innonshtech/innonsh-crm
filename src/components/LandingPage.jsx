@@ -400,10 +400,10 @@ export default function LandingPage() {
  </div>
 
  {/* Mini CTA card to fill the 8th slot */}
-      <div className="feat-card reveal d4" style={{background: "var(--grad)", color: "#fff", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start", gridColumn: "span 2"}}>
- <h3 style={{color: "#fff", fontSize: "24px"}}>All modules. One subscription.</h3>
- <p style={{color: "rgba(255,255,255,.92)", fontSize: "15px", maxWidth: "460px"}}>No add-on fees, no surprise costs. Everything your team needs to sell smarter is included from day one.</p>
- <a href="#contact" className="btn btn-white" style={{marginTop: "8px"}}>Book a Demo</a>
+      <div className="feat-card feat-card-cta reveal d4" style={{background: "var(--grad)", color: "#fff", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "flex-start"}}>
+ 	<h3 style={{color: "#fff", fontSize: "24px"}}>All modules. One subscription.</h3>
+ 	<p style={{color: "rgba(255,255,255,.92)", fontSize: "15px", maxWidth: "460px"}}>No add-on fees, no surprise costs. Everything your team needs to sell smarter is included from day one.</p>
+ 	<a href="#contact" className="btn btn-white" style={{marginTop: "8px"}}>Book a Demo</a>
  </div>
 
  </div>
